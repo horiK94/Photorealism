@@ -1,0 +1,4 @@
+﻿  Chapter4.cpp
+E:\Repository\cpp\Photorealism\Chapter4\Chapter4\Chapter4\IBL.h(37,9): warning C4244: '初期化中': 'double' から 'int' への変換です。データが失われる可能性があります。
+E:\Repository\cpp\Photorealism\Chapter4\Chapter4\Chapter4\IBL.h(38,9): warning C4244: '初期化中': 'double' から 'int' への変換です。データが失われる可能性があります。
+  Chapter4.vcxproj -> E:\Repository\cpp\Photorealism\Chapter4\Chapter4\x64\Debug\Chapter4.exe
