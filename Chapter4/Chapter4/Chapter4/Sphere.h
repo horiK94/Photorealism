@@ -1,20 +1,29 @@
 #ifndef SPHERE_H
 #define SPHERE_H
+
 #include "Vector3.h"
 #include "Ray.h"
 #include "Hit.h"
 #include "Material.h"
 #include "Light.h"
+#include "Random.h"
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 using namespace  std;
 
 /// <summary>
 /// 球クラス
 /// </summary>
+static int idCounter;
+
 class Sphere
 {
+private:
 public:
 	Vec3 center;		//中心位置
 	double radius;		//半径
+	int id;
 
 	shared_ptr<Material> material;		//BRDF
 	shared_ptr<Light> light;		//Le
@@ -22,6 +31,7 @@ public:
 		const shared_ptr<Material>& _material, const shared_ptr<Light>& _light)
 		: center(_center), radius(_radius), material(_material), light(_light)
 	{
+		id = ++idCounter;
 	}
 
 	//rayと交差しているか. 交差している場合は衝突情報をresに格納
@@ -62,6 +72,31 @@ public:
 		res.hitSphere = this;
 
 		return true;
+	}
+
+	//表面上の点を一様に取得
+	Ray areaSamling(Vec3 lightSphere) const
+	{
+		double u = rnd();
+		double v = rnd();
+
+		// https://tapioca.hatenablog.jp/entry/2017/02/19/015556
+		//zの値を決定
+		double z = -1 + 2 * u;
+		// θの値決定
+		double theta = 2 * M_PI * v;
+
+		double x = sqrt(1 - z * z) * cos(theta);
+		double y = sqrt(1 - z * z) * sin(theta);
+
+		Vec3 normal = Vec3(x, y, z);
+		Vec3 pos = center + (radius + 1e-1) * normalize(normal);
+		return Ray(lightSphere, normalize(pos - lightSphere));
+	}
+
+	static void ResetId()
+	{
+		idCounter = 0;
 	}
 };
 
