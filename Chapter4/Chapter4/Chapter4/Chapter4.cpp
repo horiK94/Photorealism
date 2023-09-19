@@ -49,7 +49,7 @@ void createCornelboxData(ThinLensCamera& cam, Aggregate& aggregate, Sphere& ligh
 void createSimpleStage(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightSphere)
 {
 	//PinholeCamera cam(Vec3(0, 0, 1), Vec3(0, 0, -1), 1);
-	cam = ThinLensCamera(Vec3(0, 0, 4), Vec3(0, 0, -1), Vec3(0, 0, 0), 1, 0.1);
+	cam = ThinLensCamera(Vec3(0, 0, 1), Vec3(0, 0, -1), Vec3(0, 0, -3), 1, 0.1);
 
 	/*
 	auto mat1 = make_shared<Diffuse>(Vec3(0.9));        //白色
@@ -60,7 +60,7 @@ void createSimpleStage(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightS
 	auto mat2 = make_shared<Glass>(1.5);        //青色
 	*/
 	auto mat1 = std::make_shared<Diffuse>(Vec3(0.9)); //白色
-	auto mat2 = std::make_shared<Diffuse>(Vec3(0.2, 0.2, 0.8)); //青色
+	auto mat2 = std::make_shared<Diffuse>(Vec3(0.2, 0.8, 0)); //青色
 
 	auto light1 = make_shared<Light>(Vec3(0));
 	auto light2 = make_shared<Light>(Vec3(0.2, 0.2, 0.8));
@@ -83,7 +83,7 @@ int main()
 	createCornelboxData(cam, aggregate, lightSphere);
 
 	//SimplySky sky;
-	IBL sky = IBL("dikhololo_night_4k.hdr");
+	IBL sky = IBL("rainforest_trail_4k.hdr");
 
 #pragma omp parallel for schedule(dynamic, i)
 	for (int i = 0; i < img.width; i++)
@@ -121,11 +121,11 @@ int main()
 	img.gamma_correction();
 
 	//PPM出力
-	img.ppm_output("nee_cornell.ppm");
+	img.ppm_output("rainforest_trail_4k_nee.ppm");
 }
 
 const int MAX_DEPTH = 500;      //最大反射回数
-const double ROULETTE = 0.99;        //ロシアンルーレットの確率
+const double ROULETTE = 0.9;        //ロシアンルーレットの確率
 
 /// <summary>
 /// init_rayの方向から来る放射輝度の値を計算して返す
@@ -168,81 +168,73 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky, 
 
 		//NEEにおける寄与の計算
 		//光源サンプリング位置の取得
-		Ray neeRay = lightSphere.areaSamling(res.hitPos);
+		Vec3 lightPos = lightSphere.areaSamling(res.hitPos);
+		Vec3 lightDir = normalize(lightPos - res.hitPos);		//現在地から光源点の方向
+		Ray shadowRay = Ray(res.hitPos, lightDir);
+		double lightDistance = (lightPos - res.hitPos).length();		//光原点までの距離
 
 		Hit neeRes;
-		if (aggregate.intersect(neeRay, neeRes))
+		if (aggregate.intersect(shadowRay, neeRes))
 		{
 			if (neeRes.hitSphere->id == (&lightSphere)->id)
 			{
-				//光源と交差した時、寄与の計算を行う
-				//光源方向へのサンプリング
-				Vec3 n = neeRes.hitNormal;
+				//寄与の計算
+				double cos1 = abs(dot(res.hitNormal, lightDir));
+				double cos2 = abs(dot(lightPos - lightSphere.center, -lightDir));
+
+				//法線
+				Vec3 n = res.hitNormal;
 
 				//法線を1線とした正規直交基底ベクトルを作成
 				Vec3 s, t;
 				orthonormalBasis(n, s, t);
-				//射出方向をローカル座標系に変換
-				Vec3 wo_local = worldToLocal(-neeRay.direction, s, n, t);
 
-				auto hitMaterial = neeRes.hitSphere->material;
-				auto hitLight = neeRes.hitSphere->light;
+				//ローカル座標へ変換
+				Vec3 local_wo = worldToLocal(-ray.direction, s, n, t);
+				Vec3 local_wi = worldToLocal(lightDir, s, n, t);
 
-				//方向のサンプリングとBRDFの評価
-				Vec3 brdf;
-				Vec3 wi_local;
-				double pdf;
-				brdf = hitMaterial->sample(wo_local, wi_local, pdf);
+				Vec3 brdf = lightSphere.material->sampleFixInput(local_wo, local_wi);
+				double pdf = 1.0 / (4 * M_PI * lightDistance * lightDistance);		//上書き
 
-				//幾何項の計算
-				Vec3 lightVec = neeRes.hitPos - res.hitPos;
-				Vec3 lightDir = normalize(lightVec);
-				double cos1 = abs(dot(res.hitNormal, lightDir));
-				double cos2 = abs(dot(neeRes.hitNormal, -lightDir));
-				double G = cos1 * cos2 / lightVec.length2();
-
-				pdf = 1 / (4 * M_PI * lightSphere.radius * lightSphere.radius);
-				col += throughput * (brdf * G / pdf) * neeRes.hitSphere->light->Le();
-				//cout << "色更新: " << col << endl;
+				double G = cos1 * cos2 / (lightDistance * lightDistance);
+				col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
 			}
-			//else
-			//{
-			//	cout << "障害物があったので失敗" << endl;
-			//}
 		}
 
 		//次の方向のサンプリング
-		//法線
-		Vec3 n = res.hitNormal;
+		{
+			//法線
+			Vec3 n = res.hitNormal;
 
-		//法線を1線とした正規直交基底ベクトルを作成
-		Vec3 s, t;
-		orthonormalBasis(n, s, t);
-		//射出方向をローカル座標系に変換
-		Vec3 wo_local = worldToLocal(-ray.direction, s, n, t);
+			//法線を1線とした正規直交基底ベクトルを作成
+			Vec3 s, t;
+			orthonormalBasis(n, s, t);
+			//射出方向をローカル座標系に変換
+			Vec3 wo_local = worldToLocal(-ray.direction, s, n, t);
 
-		//マテリアルと光源の取得
-		auto hitMaterial = res.hitSphere->material;
-		//auto hitLight = res.hitSphere->light;
+			//マテリアルと光源の取得
+			auto hitMaterial = res.hitSphere->material;
+			//auto hitLight = res.hitSphere->light;
 
-		//当たった球体のLeの加算(NEEでは寄与の計算が再度されてしまうことになるので行わない)
-		//col += throughput * hitLight->Le();
+			//当たった球体のLeの加算(NEEでは寄与の計算が再度されてしまうことになるので行わない)
+			//col += throughput * hitLight->Le();
 
-		//方向のサンプリングとBRDFの評価
-		Vec3 brdf;
-		Vec3 wi_local;
-		double pdf;
-		brdf = hitMaterial->sample(wo_local, wi_local, pdf);
-		//コサイン
-		double cos = absCosTheta(wi_local);
-		//サンプリングされた方向をワールド座標系に変換
-		Vec3 wi = localToWorld(wi_local, s, n, t);
+			//方向のサンプリングとBRDFの評価
+			Vec3 brdf;
+			Vec3 wi_local;
+			double pdf;
+			brdf = hitMaterial->sample(wo_local, wi_local, pdf);
+			//コサイン
+			double cos = absCosTheta(wi_local);
+			//サンプリングされた方向をワールド座標系に変換
+			Vec3 wi = localToWorld(wi_local, s, n, t);
 
-		//スループットの更新
-		throughput *= brdf * cos / pdf;
+			//スループットの更新
+			throughput *= brdf * cos / pdf;
 
-		//次のレイを生成
-		ray = Ray(res.hitPos, wi);
+			//次のレイを生成
+			ray = Ray(res.hitPos, wi);
+		}
 
 		//ロシアンルーレット
 		if (rnd() >= ROULETTE)

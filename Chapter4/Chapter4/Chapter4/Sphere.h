@@ -75,7 +75,7 @@ public:
 	}
 
 	//•\–Êã‚Ì“_‚ğˆê—l‚Éæ“¾
-	Ray areaSamling(Vec3 lightSphere) const
+	Vec3 areaSamling(Vec3 lightPos) const
 	{
 		double u = rnd();
 		double v = rnd();
@@ -90,8 +90,7 @@ public:
 		double y = sqrt(1 - z * z) * sin(theta);
 
 		Vec3 normal = Vec3(x, y, z);
-		Vec3 pos = center + (radius + 1e-1) * normalize(normal);
-		return Ray(lightSphere, normalize(pos - lightSphere));
+		return center + (radius + 1e-1) * normalize(normal);
 	}
 
 	static void ResetId()

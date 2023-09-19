@@ -33,5 +33,10 @@ public:
 
 		return rho / M_PI;
 	}
+
+	Vec3 sampleFixInput(const Vec3& wo, const Vec3& wi) const
+	{
+		return rho / M_PI;
+	}
 };
 #endif

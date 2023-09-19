@@ -35,5 +35,10 @@ public:
 		pdf = 1.0;
 		return 1 / cosTheta(wi) * Vec3(1);
 	}
+
+	Vec3 sampleFixInput(const Vec3& wo, const Vec3& wi) const
+	{
+		throw "–¢ŽÀ‘•";
+	}
 };
 #endif
