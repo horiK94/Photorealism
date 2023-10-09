@@ -143,6 +143,8 @@
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Chapter4.cpp" />
     <ClCompile Include="Diffuse.cpp" />
+    <ClCompile Include="Distribution1D.cpp" />
+    <ClCompile Include="Distribution2D.cpp" />
     <ClCompile Include="Glass.cpp" />
     <ClCompile Include="Hit.cpp" />
     <ClCompile Include="IBL.cpp" />
@@ -165,6 +167,8 @@
     <ClInclude Include="Aggregate.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Diffuse.h" />
+    <ClInclude Include="Distribution1D.h" />
+    <ClInclude Include="Distribution2D.h" />
     <ClInclude Include="Glass.h" />
     <ClInclude Include="Hit.h" />
     <ClInclude Include="IBL.h" />

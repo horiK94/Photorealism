@@ -20,5 +20,7 @@ public:
 	/// <param name="ray"></param>
 	/// <returns></returns>
 	virtual Vec3 getRadiance(const Ray& ray) const = 0;
+
+	virtual Vec3 sampling(Ray& sample, double& pdf) const = 0;
 };
 #endif

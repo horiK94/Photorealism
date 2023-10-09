@@ -19,7 +19,7 @@
 #include "IBL.h"
 #include "Glass.h"
 
-Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky, const Sphere& lightSphere);
+Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere);
 
 void createCornelboxData(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightSphere)
 {
@@ -60,7 +60,7 @@ void createSimpleStage(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightS
 	auto mat2 = make_shared<Glass>(1.5);        //青色
 	*/
 	auto mat1 = std::make_shared<Diffuse>(Vec3(0.9)); //白色
-	auto mat2 = std::make_shared<Diffuse>(Vec3(0.2, 0.8, 0)); //青色
+	auto mat2 = std::make_shared<Diffuse>(Vec3(0.2, 0.2, 0.8)); //青色
 
 	auto light1 = make_shared<Light>(Vec3(0));
 	auto light2 = make_shared<Light>(Vec3(0.2, 0.2, 0.8));
@@ -121,7 +121,7 @@ int main()
 	img.gamma_correction();
 
 	//PPM出力
-	img.ppm_output("rainforest_trail_4k_nee.ppm");
+	img.ppm_output("rainforest_trail_4k_nee_ibl.ppm");
 }
 
 const int MAX_DEPTH = 500;      //最大反射回数
@@ -133,13 +133,16 @@ const double ROULETTE = 0.9;        //ロシアンルーレットの確率
 /// <param name="init_ray">最初のレイ</param>
 /// <param name="aggregate">物体の集合データ</param>
 /// <returns></returns>
-Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky, const Sphere& lightSphere)
+Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere)
 {
-	Vec3 col;       //最終的な色
+	Vec3 col(0);       //最終的な色
 	Vec3 throughput(1);     //途中までの計算結果
 	Ray ray = init_ray;     //計算によって更新されるレイ
+	Vec3 sampling(0);		//サンプリングチェック用
+	int sampligCount = 0;	//サンプリング回数
 
 	//級数の評価
+	int depth = 1;
 	for (int depth = 0; depth < MAX_DEPTH; depth++)
 	{
 		Hit res;
@@ -149,7 +152,8 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky, 
 			if (depth == 0)
 			{
 				//空に飛んで行った場合、最初に当たったときだけ光源の色を返す
-				col += throughput * sky.getRadiance(ray);
+				col = throughput * ibl.getRadiance(ray);
+				sampligCount++;
 			}
 			break;
 		}
@@ -162,42 +166,65 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky, 
 				//光源に当たったのが最初の時
 				auto hitLight = res.hitSphere->light;
 				col += throughput * hitLight->Le();
+				sampligCount++;
 			}
 			break;
 		}
 
 		//NEEにおける寄与の計算
 		//光源サンプリング位置の取得
-		Vec3 lightPos = lightSphere.areaSamling(res.hitPos);
-		Vec3 lightDir = normalize(lightPos - res.hitPos);		//現在地から光源点の方向
-		Ray shadowRay = Ray(res.hitPos, lightDir);
-		double lightDistance = (lightPos - res.hitPos).length();		//光原点までの距離
+		bool isIBL = rnd() > 0.5;
+		Vec3 lightPos, lightDir;
+		Ray shadowRay = Ray(Vec3(), Vec3());
 
-		Hit neeRes;
-		if (aggregate.intersect(shadowRay, neeRes))
+		//if (isIBL)
+		//{
+		//	//背景を参照する
+		//	double pdf = 0;
+		//	Vec3 color = ibl.sampling(shadowRay, pdf);
+		//	
+		//	Hit neeRes;
+		//	if (!aggregate.intersect(shadowRay, neeRes))
+		//	{
+		//		//背景に到達できた
+		//		col += throughput * (color / pdf) * (&lightSphere)->light->Le();
+		//	}
+		//}
+		//else
 		{
-			if (neeRes.hitSphere->id == (&lightSphere)->id)
+			lightPos = lightSphere.areaSamling(res.hitPos);
+			lightDir = normalize(lightPos - res.hitPos);		//現在地から光源点の方向
+			shadowRay = Ray(res.hitPos, lightDir);
+
+			Hit neeRes;
+			if (aggregate.intersect(shadowRay, neeRes))
 			{
-				//寄与の計算
-				double cos1 = abs(dot(res.hitNormal, lightDir));
-				double cos2 = abs(dot(lightPos - lightSphere.center, -lightDir));
+				if (neeRes.hitSphere->id == (&lightSphere)->id)
+				{
+					//寄与の計算
+					double cos1 = abs(dot(res.hitNormal, lightDir));
+					double cos2 = abs(dot(lightPos - lightSphere.center, -lightDir));
 
-				//法線
-				Vec3 n = res.hitNormal;
+					//法線
+					Vec3 n = res.hitNormal;
 
-				//法線を1線とした正規直交基底ベクトルを作成
-				Vec3 s, t;
-				orthonormalBasis(n, s, t);
+					//法線を1線とした正規直交基底ベクトルを作成
+					Vec3 s, t;
+					orthonormalBasis(n, s, t);
 
-				//ローカル座標へ変換
-				Vec3 local_wo = worldToLocal(-ray.direction, s, n, t);
-				Vec3 local_wi = worldToLocal(lightDir, s, n, t);
+					//ローカル座標へ変換
+					Vec3 local_wo = worldToLocal(-ray.direction, s, n, t);
+					Vec3 local_wi = worldToLocal(lightDir, s, n, t);
 
-				Vec3 brdf = lightSphere.material->sampleFixInput(local_wo, local_wi);
-				double pdf = 1.0 / (4 * M_PI * lightDistance * lightDistance);		//上書き
+					double lightDistance = (lightPos - res.hitPos).length();		//光原点までの距離
 
-				double G = cos1 * cos2 / (lightDistance * lightDistance);
-				col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
+					Vec3 brdf = lightSphere.material->sampleFixInput(local_wo, local_wi);
+					double pdf = 1.0 / (4 * M_PI * lightDistance * lightDistance);		//上書き
+
+					double G = cos1 * cos2 / (lightDistance * lightDistance);
+					col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
+					sampligCount++;
+				}
 			}
 		}
 
@@ -247,5 +274,9 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky, 
 		}
 	}
 
-	return col;
+	if (sampligCount == 0)
+	{
+		return Vec3(0);
+	}
+	return col / sampligCount;
 }
