@@ -101,8 +101,7 @@ int main()
 				Ray ray = cam.getRay(-u, -v);
 
 				//放射輝度を計算
-				//Vec3 col = raddiance(ray, aggregate, sky, lightSphere);
-				Vec3 col = raddiance(ray, aggregate, sky);
+				Vec3 col = raddiance(ray, aggregate, sky, lightSphere);
 
 				//サンプル加算
 				img.addPixel(i, j, col);
@@ -128,81 +127,6 @@ int main()
 
 const int MAX_DEPTH = 500;      //最大反射回数
 const double ROULETTE = 0.9;        //ロシアンルーレットの確率
-
-/// <summary>
-/// init_rayの方向から来る放射輝度の値を計算して返す
-/// </summary>
-/// <param name="init_ray">最初のレイ</param>
-/// <param name="aggregate">物体の集合データ</param>
-/// <returns></returns>
-Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky)
-{
-	Vec3 col;       //最終的な色
-	Vec3 throughput(1);     //途中までの計算結果
-	Ray ray = init_ray;     //計算によって更新されるレイ
-
-	//級数の評価
-	for (int depth = 0; depth < MAX_DEPTH; depth++)
-	{
-		Hit res;
-
-		if (aggregate.intersect(ray, res))
-		{
-			//物体に衝突
-			//法線
-			Vec3 n = res.hitNormal;
-
-			//法線を1線とした正規直交基底ベクトルを作成
-			Vec3 s, t;
-			orthonormalBasis(n, s, t);
-			//射出方向をローカル座標系に変換
-			Vec3 wo_local = worldToLocal(-ray.direction, s, n, t);
-
-			//マテリアルと光源の取得
-			auto hitMaterial = res.hitSphere->material;
-			auto hitLight = res.hitSphere->light;
-
-			//当たった球体のLeの加算
-			col += throughput * hitLight->Le();
-
-			//方向のサンプリングとBRDFの評価
-			Vec3 brdf;
-			Vec3 wi_local;
-			double pdf;
-			brdf = hitMaterial->sample(wo_local, wi_local, pdf);
-			//コサイン
-			double cos = absCosTheta(wi_local);
-			//サンプリングされた方向をワールド座標系に変換
-			Vec3 wi = localToWorld(wi_local, s, n, t);
-
-			//スループットの更新
-			throughput *= brdf * cos / pdf;
-
-			//次のレイを生成
-			ray = Ray(res.hitPos, wi);
-		}
-		else
-		{
-			//空に飛んで行った場合
-			//col += throughput * Vec3(1);
-			//col += throughput * Vec3(0);
-			col += throughput * sky.getRadiance(ray);
-			break;
-		}
-
-		//ロシアンルーレット
-		if (rnd() >= ROULETTE)
-		{
-			break;
-		}
-		else
-		{
-			throughput /= ROULETTE;
-		}
-	}
-
-	return col;
-}
 
 /// <summary>
 /// init_rayの方向から来る放射輝度の値を計算して返す
