@@ -90,7 +90,7 @@ public:
 		double y = sqrt(1 - z * z) * sin(theta);
 
 		Vec3 normal = Vec3(x, y, z);
-		return center + (radius + 1e-1) * normalize(normal);
+		return center + radius * normalize(normal);
 	}
 
 	static void ResetId()

@@ -102,6 +102,7 @@ int main()
 
 				//放射輝度を計算
 				Vec3 col = raddiance(ray, aggregate, sky, lightSphere);
+				//Vec3 col = raddiance(ray, aggregate, sky);
 
 				//サンプル加算
 				img.addPixel(i, j, col);
@@ -122,11 +123,86 @@ int main()
 	img.gamma_correction();
 
 	//PPM出力
-	img.ppm_output("rainforest_trail_4k_nee_ibl_2.ppm");
+	img.ppm_output("rainforest_trail_4k_nee_ibl_3.ppm");
 }
 
-const int MAX_DEPTH = 2;      //最大反射回数
+const int MAX_DEPTH = 500;      //最大反射回数
 const double ROULETTE = 0.9;        //ロシアンルーレットの確率
+
+/// <summary>
+/// init_rayの方向から来る放射輝度の値を計算して返す
+/// </summary>
+/// <param name="init_ray">最初のレイ</param>
+/// <param name="aggregate">物体の集合データ</param>
+/// <returns></returns>
+Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky)
+{
+	Vec3 col;       //最終的な色
+	Vec3 throughput(1);     //途中までの計算結果
+	Ray ray = init_ray;     //計算によって更新されるレイ
+
+	//級数の評価
+	for (int depth = 0; depth < MAX_DEPTH; depth++)
+	{
+		Hit res;
+
+		if (aggregate.intersect(ray, res))
+		{
+			//物体に衝突
+			//法線
+			Vec3 n = res.hitNormal;
+
+			//法線を1線とした正規直交基底ベクトルを作成
+			Vec3 s, t;
+			orthonormalBasis(n, s, t);
+			//射出方向をローカル座標系に変換
+			Vec3 wo_local = worldToLocal(-ray.direction, s, n, t);
+
+			//マテリアルと光源の取得
+			auto hitMaterial = res.hitSphere->material;
+			auto hitLight = res.hitSphere->light;
+
+			//当たった球体のLeの加算
+			col += throughput * hitLight->Le();
+
+			//方向のサンプリングとBRDFの評価
+			Vec3 brdf;
+			Vec3 wi_local;
+			double pdf;
+			brdf = hitMaterial->sample(wo_local, wi_local, pdf);
+			//コサイン
+			double cos = absCosTheta(wi_local);
+			//サンプリングされた方向をワールド座標系に変換
+			Vec3 wi = localToWorld(wi_local, s, n, t);
+
+			//スループットの更新
+			throughput *= brdf * cos / pdf;
+
+			//次のレイを生成
+			ray = Ray(res.hitPos, wi);
+		}
+		else
+		{
+			//空に飛んで行った場合
+			//col += throughput * Vec3(1);
+			//col += throughput * Vec3(0);
+			col += throughput * sky.getRadiance(ray);
+			break;
+		}
+
+		//ロシアンルーレット
+		if (rnd() >= ROULETTE)
+		{
+			break;
+		}
+		else
+		{
+			throughput /= ROULETTE;
+		}
+	}
+
+	return col;
+}
 
 /// <summary>
 /// init_rayの方向から来る放射輝度の値を計算して返す
@@ -141,7 +217,6 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 	Ray ray = init_ray;     //計算によって更新されるレイ
 
 	//級数の評価
-	int depth = 1;
 	for (int depth = 0; depth < MAX_DEPTH; depth++)
 	{
 		Hit res;
@@ -196,34 +271,31 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 			Hit neeRes;
 			if (aggregate.intersect(shadowRay, neeRes))
 			{
-				if (neeRes.hitSphere->id == (&lightSphere)->id)
+				//寄与の計算
+				double cos1 = abs(dot(res.hitNormal, lightDir));
+				double cos2 = abs(dot(normalize(lightPos - lightSphere.center), -lightDir));
+
+				//法線
+				Vec3 n = res.hitNormal;
+
+				//法線を1線とした正規直交基底ベクトルを作成
+				Vec3 s, t;
+				orthonormalBasis(n, s, t);
+
+				//ローカル座標へ変換
+				Vec3 local_wo = worldToLocal(-ray.direction, s, n, t);
+				Vec3 local_wi = worldToLocal(lightDir, s, n, t);
+
+				double lightDistance = (lightPos - res.hitPos).length();		//光原点までの距離
+
+				Vec3 brdf = res.hitSphere->material->sampleFixInput(local_wo, local_wi);
+				double pdf = 1.0 / (4 * M_PI * lightSphere.radius * lightSphere.radius);		//上書き
+
+				//破棄チェック
+				if (abs(lightDistance - (neeRes.hitPos - res.hitPos).length()) <= 0.1)
 				{
-					//寄与の計算
-					double cos1 = abs(dot(res.hitNormal, lightDir));
-					double cos2 = abs(dot(normalize(lightPos - lightSphere.center), -lightDir));
-
-					//法線
-					Vec3 n = res.hitNormal;
-
-					//法線を1線とした正規直交基底ベクトルを作成
-					Vec3 s, t;
-					orthonormalBasis(n, s, t);
-
-					//ローカル座標へ変換
-					Vec3 local_wo = worldToLocal(-ray.direction, s, n, t);
-					Vec3 local_wi = worldToLocal(lightDir, s, n, t);
-
-					double lightDistance = (lightPos - res.hitPos).length();		//光原点までの距離
-
-					Vec3 brdf = lightSphere.material->sampleFixInput(local_wo, local_wi);
-					double pdf = 1.0 / (4 * M_PI * lightSphere.radius * lightSphere.radius);		//上書き
-
-					//破棄チェック
-					if (lightDistance + 0.01 <= (neeRes.hitPos - res.hitPos).length())
-					{
-						double G = cos1 * cos2 / (lightDistance * lightDistance);
-						col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
-					}
+					double G = cos1 * cos2 / (lightDistance * lightDistance);
+					col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
 				}
 			}
 		}

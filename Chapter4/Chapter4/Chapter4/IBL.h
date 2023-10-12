@@ -64,7 +64,7 @@ public:
 	/// <summary>
 	/// 重み付けした乱数サンプリングを行う
 	/// </summary>
-	Vec3 sampling(Ray& sample, double& pdf) const
+	Vec3 sampling(Ray& sample, double& pdf/*, Vec3& v*/) const
 	{
 		std::pair<double, double> uv = distribution.getSample(std::make_pair(rnd(), rnd()), pdf);
 		double theta = uv.first * M_PI;		//0～π
