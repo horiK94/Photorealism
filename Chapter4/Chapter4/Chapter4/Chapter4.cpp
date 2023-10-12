@@ -125,7 +125,7 @@ int main()
 	img.ppm_output("rainforest_trail_4k_nee_ibl_2.ppm");
 }
 
-const int MAX_DEPTH = 500;      //最大反射回数
+const int MAX_DEPTH = 2;      //最大反射回数
 const double ROULETTE = 0.9;        //ロシアンルーレットの確率
 
 /// <summary>
@@ -200,7 +200,7 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 				{
 					//寄与の計算
 					double cos1 = abs(dot(res.hitNormal, lightDir));
-					double cos2 = abs(dot(lightPos - lightSphere.center, -lightDir));
+					double cos2 = abs(dot(normalize(lightPos - lightSphere.center), -lightDir));
 
 					//法線
 					Vec3 n = res.hitNormal;
@@ -216,10 +216,14 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 					double lightDistance = (lightPos - res.hitPos).length();		//光原点までの距離
 
 					Vec3 brdf = lightSphere.material->sampleFixInput(local_wo, local_wi);
-					double pdf = 1.0 / (4 * M_PI * lightDistance * lightDistance);		//上書き
+					double pdf = 1.0 / (4 * M_PI * lightSphere.radius * lightSphere.radius);		//上書き
 
-					double G = cos1 * cos2 / (lightDistance * lightDistance);
-					col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
+					//破棄チェック
+					if (lightDistance + 0.01 <= (neeRes.hitPos - res.hitPos).length())
+					{
+						double G = cos1 * cos2 / (lightDistance * lightDistance);
+						col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
+					}
 				}
 			}
 		}
