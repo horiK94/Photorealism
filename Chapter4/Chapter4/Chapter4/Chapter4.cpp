@@ -139,8 +139,6 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 	Vec3 col(0);       //最終的な色
 	Vec3 throughput(1);     //途中までの計算結果
 	Ray ray = init_ray;     //計算によって更新されるレイ
-	Vec3 sampling(0);		//サンプリングチェック用
-	int sampligCount = 0;	//サンプリング回数
 
 	//級数の評価
 	int depth = 1;
@@ -154,7 +152,6 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 			{
 				//空に飛んで行った場合、最初に当たったときだけ光源の色を返す
 				col = throughput * ibl.getRadiance(ray);
-				sampligCount++;
 			}
 			break;
 		}
@@ -167,7 +164,6 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 				//光源に当たったのが最初の時
 				auto hitLight = res.hitSphere->light;
 				col += throughput * hitLight->Le();
-				sampligCount++;
 			}
 			break;
 		}
@@ -224,7 +220,6 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 
 					double G = cos1 * cos2 / (lightDistance * lightDistance);
 					col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
-					sampligCount++;
 				}
 			}
 		}
@@ -275,9 +270,5 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 		}
 	}
 
-	if (sampligCount == 0)
-	{
-		return Vec3(0);
-	}
-	return col / sampligCount;
+	return col;
 }
