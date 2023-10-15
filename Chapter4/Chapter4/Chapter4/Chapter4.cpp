@@ -42,7 +42,7 @@ void createCornelboxData(ThinLensCamera& cam, Aggregate& aggregate, Sphere& ligh
 	aggregate.add(std::make_shared<Sphere>(Vec3(-10003, 0, 0), 10000, mat3, light1));		//左の壁
 	aggregate.add(std::make_shared<Sphere>(Vec3(0, 10003, 0), 10000, mat1, light1));		//天井
 	aggregate.add(std::make_shared<Sphere>(Vec3(0, 0, -10003), 10000, mat1, light1));		//後ろの壁
-	aggregate.add(std::make_shared<Sphere>(Vec3(0, 0, 0), 1, mat1, light1));		//球
+	//aggregate.add(std::make_shared<Sphere>(Vec3(0, 0, 0), 1, mat1, light1));		//球
 	lightSphere = Sphere(Vec3(0, 3, 0), 1, mat1, light2);
 	aggregate.add(std::make_shared<Sphere>(lightSphere));		//光源
 }
@@ -70,6 +70,9 @@ void createSimpleStage(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightS
 	lightSphere = Sphere(Vec3(0, 0, -3), 1, mat2, light2);
 	aggregate.add(std::make_shared<Sphere>(lightSphere)); //球
 }
+
+int success = 0;
+int miss = 0;
 
 int main()
 {
@@ -122,8 +125,10 @@ int main()
 	//ガンマ補正
 	img.gamma_correction();
 
+	cout << "success : " << ((double)success / (success + miss)) << endl;
+
 	//PPM出力
-	img.ppm_output("rainforest_trail_4k_nee_ibl_3.ppm");
+	img.ppm_output("rainforest_trail_4k_nee_ibl_4.ppm");
 }
 
 const int MAX_DEPTH = 500;      //最大反射回数
@@ -289,13 +294,18 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 				double lightDistance = (lightPos - res.hitPos).length();		//光原点までの距離
 
 				Vec3 brdf = res.hitSphere->material->sampleFixInput(local_wo, local_wi);
-				double pdf = 1.0 / (4 * M_PI * lightSphere.radius * lightSphere.radius);		//上書き
+				double pdf = 1.0 / (2 * M_PI * lightSphere.radius * lightSphere.radius);		//上書き
 
 				//破棄チェック
 				if (abs(lightDistance - (neeRes.hitPos - res.hitPos).length()) <= 0.1)
 				{
 					double G = cos1 * cos2 / (lightDistance * lightDistance);
 					col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
+					success++;
+				}
+				else
+				{
+					miss++;
 				}
 			}
 		}

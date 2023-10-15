@@ -75,21 +75,28 @@ public:
 	}
 
 	//表面上の点を一様に取得
-	Vec3 areaSamling(Vec3 lightPos) const
+	Vec3 areaSamling(Vec3 hitPos) const
 	{
+		//中心から現在の光源の衝突位置への向きベクトルを中心とする
+		Vec3 n = normalize(hitPos - center);
+
+		//法線を1線とした正規直交基底ベクトルを作成
+		Vec3 s, t;
+		orthonormalBasis(n, s, t);
+
 		double u = rnd();
 		double v = rnd();
 
 		// https://tapioca.hatenablog.jp/entry/2017/02/19/015556
 		//zの値を決定
-		double z = -1 + 2 * u;
+		double z = u;
 		// θの値決定
 		double theta = 2 * M_PI * v;
 
 		double x = sqrt(1 - z * z) * cos(theta);
 		double y = sqrt(1 - z * z) * sin(theta);
 
-		Vec3 normal = Vec3(x, y, z);
+		Vec3 normal = localToWorld(Vec3(x, y, z), s, t, n);
 		return center + radius * normalize(normal);
 	}
 
