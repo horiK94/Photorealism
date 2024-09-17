@@ -104,6 +104,7 @@ public:
 	{
 		idCounter = 0;
 	}
+
 };
 
 #endif

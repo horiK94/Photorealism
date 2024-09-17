@@ -76,7 +76,7 @@ int miss = 0;
 
 int main()
 {
-	const int N = 100;      //サンプリング数
+	const int N = 10;      //サンプリング数
 
 	Image img(512, 512);
 
@@ -125,10 +125,11 @@ int main()
 	//ガンマ補正
 	img.gamma_correction();
 
-	cout << "success : " << ((double)success / (success + miss)) << endl;
+	//cout << "success : " << ((double)success / (success + miss)) << endl;
 
 	//PPM出力
-	img.ppm_output("rainforest_trail_4k_nee_ibl_4.ppm");
+	img.ppm_output("ppm_sample.ppm");
+	img.png_output("png_sample.png");
 }
 
 const int MAX_DEPTH = 500;      //最大反射回数
@@ -254,20 +255,6 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 		Vec3 lightPos, lightDir;
 		Ray shadowRay = Ray(Vec3(), Vec3());
 
-		//if (isIBL)
-		//{
-		//	//背景を参照する
-		//	double pdf = 0;
-		//	Vec3 color = ibl.sampling(shadowRay, pdf);
-		//	
-		//	Hit neeRes;
-		//	if (!aggregate.intersect(shadowRay, neeRes))
-		//	{
-		//		//背景に到達できた
-		//		col += throughput * (color / pdf) * (&lightSphere)->light->Le();
-		//	}
-		//}
-		//else
 		{
 			lightPos = lightSphere.areaSamling(res.hitPos);
 			lightDir = normalize(lightPos - res.hitPos);		//現在地から光源点の方向
@@ -301,12 +288,12 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 				{
 					double G = cos1 * cos2 / (lightDistance * lightDistance);
 					col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
-					success++;
+					//success++;
 				}
-				else
-				{
-					miss++;
-				}
+				//else
+				//{
+				//	miss++;
+				//}
 			}
 		}
 
