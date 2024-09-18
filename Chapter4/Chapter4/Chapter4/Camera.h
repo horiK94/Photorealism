@@ -15,10 +15,12 @@ public:
 	{
 		orthnormalBasis(cameraForward, cameraRight, cameraUp);
 
+#if SHOW_LOG
 		std::cout << "cameraPos: " << cameraPos << std::endl;
 		std::cout << "cameraForward: " << cameraForward << std::endl;
 		std::cout << "cameraRight: " << cameraRight << std::endl;
 		std::cout << "cameraUp: " << cameraUp << std::endl;
+#endif
 	};
 
 	/// <summary>

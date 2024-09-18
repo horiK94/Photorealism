@@ -19,6 +19,8 @@
 #include "IBL.h"
 #include "Glass.h"
 
+#define SHOW_LOG false
+
 Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky);
 Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere);
 
@@ -42,7 +44,7 @@ void createCornelboxData(ThinLensCamera& cam, Aggregate& aggregate, Sphere& ligh
 	aggregate.add(std::make_shared<Sphere>(Vec3(-10003, 0, 0), 10000, mat3, light1));		//左の壁
 	aggregate.add(std::make_shared<Sphere>(Vec3(0, 10003, 0), 10000, mat1, light1));		//天井
 	aggregate.add(std::make_shared<Sphere>(Vec3(0, 0, -10003), 10000, mat1, light1));		//後ろの壁
-	//aggregate.add(std::make_shared<Sphere>(Vec3(0, 0, 0), 1, mat1, light1));		//球
+	aggregate.add(std::make_shared<Sphere>(Vec3(0, 0, 0), 1, mat1, light1));		//球
 	lightSphere = Sphere(Vec3(0, 3, 0), 1, mat1, light2);
 	aggregate.add(std::make_shared<Sphere>(lightSphere));		//光源
 }
@@ -76,7 +78,7 @@ int miss = 0;
 
 int main()
 {
-	const int N = 100;      //サンプリング数
+	const int N = 10;      //サンプリング数
 
 	Image img(512, 512);
 
@@ -112,10 +114,12 @@ int main()
 			}
 
 			//進歩状況の出力
+#if SHOW_LOG
 			if (omp_get_thread_num() == 0)
 			{
 				cout << double(j + i * img.height) / (img.width * img.height) * 100 << "\r" << endl;
 			}
+#endif
 		}
 	}
 
@@ -125,7 +129,9 @@ int main()
 	//ガンマ補正
 	img.gamma_correction();
 
+#if SHOW_LOG
 	cout << "success : " << ((double)success / (success + miss)) << endl;
+#endif
 
 	//PPM出力
 	img.ppm_output("rainforest_trail_4k_nee_ibl_4.ppm");
@@ -236,7 +242,9 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 			break;
 		}
 
+#if SHOW_LOG
 		//cout << sqrt(pow(res.hitPos.x - res.hitSphere->center.x, 2) + pow(res.hitPos.y - res.hitSphere->center.y, 2) + pow(res.hitPos.z - res.hitSphere->center.z, 2)) << endl;
+#endif
 		if (res.hitSphere->id == (&lightSphere)->id)
 		{
 			if (depth == 0)
@@ -254,20 +262,20 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 		Vec3 lightPos, lightDir;
 		Ray shadowRay = Ray(Vec3(), Vec3());
 
-		//if (isIBL)
-		//{
-		//	//背景を参照する
-		//	double pdf = 0;
-		//	Vec3 color = ibl.sampling(shadowRay, pdf);
-		//	
-		//	Hit neeRes;
-		//	if (!aggregate.intersect(shadowRay, neeRes))
-		//	{
-		//		//背景に到達できた
-		//		col += throughput * (color / pdf) * (&lightSphere)->light->Le();
-		//	}
-		//}
-		//else
+		if (isIBL)
+		{
+			//背景を参照する
+			double pdf = 0;
+			Vec3 color = ibl.sampling(shadowRay, pdf);
+			
+			Hit neeRes;
+			if (!aggregate.intersect(shadowRay, neeRes))
+			{
+				//背景に到達できた
+				col += throughput * (color / pdf) * (&lightSphere)->light->Le();
+			}
+		}
+		else
 		{
 			lightPos = lightSphere.areaSamling(res.hitPos);
 			lightDir = normalize(lightPos - res.hitPos);		//現在地から光源点の方向
@@ -301,11 +309,13 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 				{
 					double G = cos1 * cos2 / (lightDistance * lightDistance);
 					col += throughput * (brdf * G / pdf) * (&lightSphere)->light->Le();
+#if SHOW_LOG
 					success++;
 				}
 				else
 				{
 					miss++;
+#endif
 				}
 			}
 		}
