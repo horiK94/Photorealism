@@ -140,6 +140,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Aggregate.cpp" />
+    <ClCompile Include="BinaryFileWriter.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Chapter4.cpp" />
     <ClCompile Include="Diffuse.cpp" />
@@ -165,6 +166,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Aggregate.h" />
+    <ClInclude Include="BinaryFileWriter.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Diffuse.h" />
     <ClInclude Include="Distribution1D.h" />
@@ -182,6 +184,7 @@
     <ClInclude Include="SimplySky.h" />
     <ClInclude Include="Sky.h" />
     <ClInclude Include="Sphere.h" />
+    <ClInclude Include="stb_image_write.h" />
     <ClInclude Include="std_image.h" />
     <ClInclude Include="ThinLensCamera.h" />
     <ClInclude Include="UniformSky.h" />

@@ -1,6 +1,14 @@
 #include "Image.h"
 #include "Util.h"
 #include <fstream>
+#include <vector>
+
+#define STB_IMAGE_STATIC
+#define STB_IMAGE_IMPLEMENTATION
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define __STDC_LIB_EXT1__
+#include "stb_image_write.h"
 
 Vec3 Image::getPixel(int i, int j) const
 {
@@ -61,4 +69,25 @@ void Image::ppm_output(const std::string& filename) const
 	}
 
 	file.close();
+}
+
+void Image::png_output(const std::string& filename) const
+{
+	std::vector<unsigned char> pixels(width * height * 4);
+	int64_t i = 0;
+
+	for (int y = 0; y < height; y++)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			Vec3 pixel = getPixel(x, y);
+			pixels[i * 4 + 0] = clamp((int)(GRADUATION_NUM * pixel.x), 0, GRADUATION_NUM);
+			pixels[i * 4 + 1] = clamp((int)(GRADUATION_NUM * pixel.y), 0, GRADUATION_NUM);
+			pixels[i * 4 + 2] = clamp((int)(GRADUATION_NUM * pixel.z), 0, GRADUATION_NUM);
+			pixels[i * 4 + 3] = 255;
+			i++;
+		}
+	}
+
+	stbi_write_png(filename.c_str(), width, height, 4, pixels.data(), width * 4);
 }

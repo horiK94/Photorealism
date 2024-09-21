@@ -38,5 +38,11 @@ public:
 	/// </summary>
 	/// <param name="filename"></param>
 	void ppm_output(const std::string& filename) const;
+
+	/// <summary>
+	/// PNG‰æ‘œo—Í
+	/// </summary>
+	/// <param name="filename"></param>
+	void png_output(const std::string& filename) const;
 };
 #endif

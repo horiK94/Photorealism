@@ -19,7 +19,7 @@
 #include "IBL.h"
 #include "Glass.h"
 
-#define SHOW_LOG false
+#define SHOW_LOG true
 
 Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky);
 Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere);
@@ -134,7 +134,8 @@ int main()
 #endif
 
 	//PPM出力
-	img.ppm_output("rainforest_trail_4k_nee_ibl_4.ppm");
+	img.ppm_output("ppm_sample.ppm");
+	img.png_output("png_sample.png");
 }
 
 const int MAX_DEPTH = 500;      //最大反射回数
