@@ -19,7 +19,10 @@
 #include "IBL.h"
 #include "Glass.h"
 
+#include <OpenImageDenoise/oidn.hpp>
+
 #define SHOW_LOG true
+#pragma comment (lib, "OpenImageDenoise.lib")
 
 Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky);
 Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere);
@@ -78,7 +81,7 @@ int miss = 0;
 
 int main()
 {
-	const int N = 10;      //サンプリング数
+	const int N = 1;      //サンプリング数
 
 	Image img(512, 512);
 
@@ -134,8 +137,46 @@ int main()
 #endif
 
 	//PPM出力
-	img.ppm_output("ppm_sample.ppm");
-	img.png_output("png_sample.png");
+	//img.ppm_output("ppm_sample.ppm");
+	img.png_output("before.png");
+
+	//oidn::DeviceRef device = oidn::newDevice(); // CPU or GPU if available
+	oidn::DeviceRef device = oidn::newDevice(oidn::DeviceType::CPU);
+	device.commit();
+
+	// Create buffers for input/output images accessible by both host (CPU) and device (CPU/GPU)
+	oidn::BufferRef colorBuf = device.newBuffer(img.width * img.height * 3 * sizeof(float));
+	float* colorPtr = static_cast<float*>(colorBuf.getData()); // mapped pointer to copy the image data to
+	for (int i = 0; i < img.width * img.height; i++)
+	{
+		colorPtr[i * 3 + 0] = img.data[i].x;
+		colorPtr[i * 3 + 1] = img.data[i].y;
+		colorPtr[i * 3 + 2] = img.data[i].z;
+	}
+	oidn::FilterRef filter = device.newFilter("RT"); // generic ray tracing filter
+	filter.setImage("color", colorBuf, oidn::Format::Float3, img.width, img.height); // beauty
+	filter.setImage("output", colorBuf, oidn::Format::Float3, img.width, img.height); // denoised beauty
+	filter.set("hdr", true); // beauty image is HDR
+	filter.commit();
+
+	colorPtr = (float*)colorBuf.getData();
+
+	// Filter the beauty image
+	filter.execute();
+
+	// Check for errors
+	//const char* errorMessage;
+	//if (device.getError(errorMessage) != oidn::Error::None)
+	//	std::cout << "Error: " << errorMessage << std::endl;
+
+	for (int i = 0; i < img.width * img.height; i++)
+	{
+		img.data[i].x = colorPtr[i * 3 + 0];
+		img.data[i].y = colorPtr[i * 3 + 1];
+		img.data[i].z = colorPtr[i * 3 + 2];
+	}
+
+	img.png_output("after.png");
 }
 
 const int MAX_DEPTH = 500;      //最大反射回数
@@ -268,7 +309,7 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 			//背景を参照する
 			double pdf = 0;
 			Vec3 color = ibl.sampling(shadowRay, pdf);
-			
+
 			Hit neeRes;
 			if (!aggregate.intersect(shadowRay, neeRes))
 			{
