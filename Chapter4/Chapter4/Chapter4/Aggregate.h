@@ -5,27 +5,27 @@
 #include <vector>
 #include "Ray.h"
 #include "Hit.h"
-#include "Sphere.h"
+#include "Shape.h"
 using namespace std;
 
 class Aggregate
 {
 public:
 	//shared_ptr: 
-	vector<shared_ptr<Sphere>> spheres;
+	vector<shared_ptr<Shape>> shapes;
 
 	Aggregate() {};
-	Aggregate(const vector<shared_ptr<Sphere>>& _spheres) : spheres(_spheres) {};
+	Aggregate(const vector<shared_ptr<Shape>>& _spheres) : shapes(_spheres) {};
 
-	void add(const shared_ptr<Sphere> s)
+	void add(const shared_ptr<Shape> s)
 	{
-		spheres.push_back(s);
+		shapes.push_back(s);
 	};
 
 	bool intersect(const Ray& ray, Hit& res) const
 	{
 		bool hit = false;
-		for (auto s : spheres)
+		for (auto s : shapes)
 		{
 			Hit res_tmp;
 			if (s->intersect(ray, res_tmp))

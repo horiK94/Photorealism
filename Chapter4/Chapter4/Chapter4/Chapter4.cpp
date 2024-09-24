@@ -21,11 +21,16 @@
 
 #include <OpenImageDenoise/oidn.hpp>
 
-#define SHOW_LOG true
+#define SHOW_LOG false
 #pragma comment (lib, "OpenImageDenoise.lib")
 
+#define WIDTH 400
+#define HEIGHT 400
+
 Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky);
-Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere);
+//NEE使用時
+Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere,
+	Vec3& firstAlbedo, Vec3& firstNormal);
 
 void createCornelboxData(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightSphere)
 {
@@ -79,11 +84,17 @@ void createSimpleStage(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightS
 int success = 0;
 int miss = 0;
 
+Image img(WIDTH, HEIGHT);
+//Image albedo(WIDTH, HEIGHT);
+//Vec3 normal[WIDTH][HEIGHT];
+oidn::BufferRef colorBuf;
+float* colorPtr;
+
 int main()
 {
-	const int N = 1;      //サンプリング数
+	const int N = 16;      //サンプリング数
 
-	Image img(512, 512);
+	//Image img(1280, 720);
 
 	ThinLensCamera cam = ThinLensCamera(Vec3(0), Vec3(0), Vec3(0), 0, 0);
 	Aggregate aggregate;
@@ -102,18 +113,25 @@ int main()
 			for (int k = 0; k < N; k++)
 			{
 				//(u, v)の計算
-				double u = (2.0 * (i + rnd()) - img.width) / img.width;
+				double u = (2.0 * (i + rnd()) - img.width) / img.height;
 				double v = (2.0 * (j + rnd()) - img.height) / img.height;
 
 				//レイを生成(ピンホールカメラは反転するのでマイナスを付ける)
 				Ray ray = cam.getRay(-u, -v);
 
 				//放射輝度を計算
-				Vec3 col = raddiance(ray, aggregate, sky, lightSphere);
+
+				Vec3 albedoColor;
+				Vec3 normal;
+				Vec3 col = raddiance(ray, aggregate, sky, lightSphere, albedoColor, /*normal[i][j]*/normal);
 				//Vec3 col = raddiance(ray, aggregate, sky);
 
 				//サンプル加算
 				img.addPixel(i, j, col);
+				//if (k == 0)
+				//{
+				//	albedo.addPixel(i, j, albedoColor);
+				//}
 			}
 
 			//進歩状況の出力
@@ -138,23 +156,58 @@ int main()
 
 	//PPM出力
 	//img.ppm_output("ppm_sample.ppm");
-	img.png_output("before.png");
+	img.png_output("before100.png");
 
 	//oidn::DeviceRef device = oidn::newDevice(); // CPU or GPU if available
 	oidn::DeviceRef device = oidn::newDevice(oidn::DeviceType::CPU);
 	device.commit();
 
 	// Create buffers for input/output images accessible by both host (CPU) and device (CPU/GPU)
-	oidn::BufferRef colorBuf = device.newBuffer(img.width * img.height * 3 * sizeof(float));
-	float* colorPtr = static_cast<float*>(colorBuf.getData()); // mapped pointer to copy the image data to
-	for (int i = 0; i < img.width * img.height; i++)
-	{
-		colorPtr[i * 3 + 0] = img.data[i].x;
-		colorPtr[i * 3 + 1] = img.data[i].y;
-		colorPtr[i * 3 + 2] = img.data[i].z;
-	}
 	oidn::FilterRef filter = device.newFilter("RT"); // generic ray tracing filter
-	filter.setImage("color", colorBuf, oidn::Format::Float3, img.width, img.height); // beauty
+
+	//色情報の作成
+	cout << (static_cast<unsigned long long>(img.width) * img.height * 3 * sizeof(float)) << endl;
+	colorBuf = device.newBuffer(static_cast<unsigned long long>(img.width) * img.height * 3 * sizeof(float));
+	colorPtr = static_cast<float*>(colorBuf.getData()); // mapped pointer to copy the image data to
+	{
+		for (int i = 0; i < img.width * img.height; i++)
+		{
+			colorPtr[i * 3 + 0] = img.data[i].x;
+			colorPtr[i * 3 + 1] = img.data[i].y;
+			colorPtr[i * 3 + 2] = img.data[i].z;
+		}
+		filter.setImage("color", colorBuf, oidn::Format::Float3, img.width, img.height); // beauty
+	}
+
+	//// アルベド情報の取得
+	//{
+	//	oidn::BufferRef albedoBuf = device.newBuffer(img.width * img.height * 3 * sizeof(float));
+	//	float* albedoPtr = static_cast<float*>(albedoBuf.getData()); // mapped pointer to copy the image data to
+	//	for (int i = 0; i < img.width * img.height; i++)
+	//	{
+	//		albedoPtr[i * 3 + 0] = (float)albedo.data[i].x;
+	//		albedoPtr[i * 3 + 1] = (float)albedo.data[i].y;
+	//		albedoPtr[i * 3 + 2] = (float)albedo.data[i].z;
+	//	}
+	//	filter.setImage("albedo", albedoBuf, oidn::Format::Float3, img.width, img.height); // albedo
+	//}
+
+	//// nornmal情報の取得
+	//{
+	//	oidn::BufferRef normalBuf = device.newBuffer(img.width * img.height * 3 * sizeof(float));
+	//	float* normalPtr = static_cast<float*>(normalBuf.getData()); // mapped pointer to copy the image data to
+	//	for (int i = 0; i < img.width * img.height; i++)
+	//	{
+	//		normalPtr[i * 3 + 0] = (float)normal[i]->x;
+	//		normalPtr[i * 3 + 1] = (float)normal[i]->y;
+	//		normalPtr[i * 3 + 2] = (float)normal[i]->z;
+	//	}
+
+	//	filter.setImage("normal", normalBuf, oidn::Format::Float3, img.width, img.height); // normal
+	//}
+
+
+	//デノイズ
 	filter.setImage("output", colorBuf, oidn::Format::Float3, img.width, img.height); // denoised beauty
 	filter.set("hdr", true); // beauty image is HDR
 	filter.commit();
@@ -176,10 +229,10 @@ int main()
 		img.data[i].z = colorPtr[i * 3 + 2];
 	}
 
-	img.png_output("after.png");
+	img.png_output("after100.png");
 }
 
-const int MAX_DEPTH = 500;      //最大反射回数
+const int MAX_DEPTH = 5;      //最大反射回数
 const double ROULETTE = 0.9;        //ロシアンルーレットの確率
 
 /// <summary>
@@ -212,8 +265,8 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky)
 			Vec3 wo_local = worldToLocal(-ray.direction, s, n, t);
 
 			//マテリアルと光源の取得
-			auto hitMaterial = res.hitSphere->material;
-			auto hitLight = res.hitSphere->light;
+			auto hitMaterial = res.hitShape->material;
+			auto hitLight = res.hitShape->light;
 
 			//当たった球体のLeの加算
 			col += throughput * hitLight->Le();
@@ -263,11 +316,15 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky)
 /// <param name="init_ray">最初のレイ</param>
 /// <param name="aggregate">物体の集合データ</param>
 /// <returns></returns>
-Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere)
+Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere,
+	Vec3& firstAlbedo, Vec3& firstNormal)
 {
 	Vec3 col(0);       //最終的な色
 	Vec3 throughput(1);     //途中までの計算結果
 	Ray ray = init_ray;     //計算によって更新されるレイ
+	const double max_depth = 10000;	//当たらなかったときの深度
+	double depthValue = max_depth;
+	Vec3 normal = init_ray.direction;
 
 	//級数の評価
 	for (int depth = 0; depth < MAX_DEPTH; depth++)
@@ -280,27 +337,29 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 			{
 				//空に飛んで行った場合、最初に当たったときだけ光源の色を返す
 				col = throughput * ibl.getRadiance(ray);
+				firstAlbedo = col;
+				firstNormal = normal;
 			}
 			break;
 		}
 
-#if SHOW_LOG
-		//cout << sqrt(pow(res.hitPos.x - res.hitSphere->center.x, 2) + pow(res.hitPos.y - res.hitSphere->center.y, 2) + pow(res.hitPos.z - res.hitSphere->center.z, 2)) << endl;
-#endif
-		if (res.hitSphere->id == (&lightSphere)->id)
+		if (res.hitShape->id == (&lightSphere)->id)
 		{
 			if (depth == 0)
 			{
 				//光源に当たったのが最初の時
-				auto hitLight = res.hitSphere->light;
+				auto hitLight = res.hitShape->light;
 				col += throughput * hitLight->Le();
+				firstAlbedo = col;
+				firstNormal = normal;
 			}
 			break;
 		}
 
 		//NEEにおける寄与の計算
 		//光源サンプリング位置の取得
-		bool isIBL = rnd() > 0.5;
+		//bool isIBL = rnd() > 0.5;
+		bool isIBL = false;
 		Vec3 lightPos, lightDir;
 		Ray shadowRay = Ray(Vec3(), Vec3());
 
@@ -319,7 +378,7 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 		}
 		else
 		{
-			lightPos = lightSphere.areaSamling(res.hitPos);
+			lightPos = lightSphere.areaSampling(res.hitPos);
 			lightDir = normalize(lightPos - res.hitPos);		//現在地から光源点の方向
 			shadowRay = Ray(res.hitPos, lightDir);
 
@@ -342,8 +401,10 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 				Vec3 local_wi = worldToLocal(lightDir, s, n, t);
 
 				double lightDistance = (lightPos - res.hitPos).length();		//光原点までの距離
+				depthValue = (init_ray.origin - neeRes.hitPos).length();		//初期位置から光源の衝突位置までの距離
+				normal = neeRes.hitNormal;
 
-				Vec3 brdf = res.hitSphere->material->sampleFixInput(local_wo, local_wi);
+				Vec3 brdf = res.hitShape->material->sampleFixInput(local_wo, local_wi);
 				double pdf = 1.0 / (2 * M_PI * lightSphere.radius * lightSphere.radius);		//上書き
 
 				//破棄チェック
@@ -374,8 +435,8 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 			Vec3 wo_local = worldToLocal(-ray.direction, s, n, t);
 
 			//マテリアルと光源の取得
-			auto hitMaterial = res.hitSphere->material;
-			//auto hitLight = res.hitSphere->light;
+			auto hitMaterial = res.hitShape->material;
+			//auto hitLight = res.hitShape->light;
 
 			//当たった球体のLeの加算(NEEでは寄与の計算が再度されてしまうことになるので行わない)
 			//col += throughput * hitLight->Le();
@@ -395,6 +456,12 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 
 			//次のレイを生成
 			ray = Ray(res.hitPos, wi);
+		}
+
+		if (depth == 0)
+		{
+			firstAlbedo = col;
+			firstNormal = normal;
 		}
 
 		//ロシアンルーレット

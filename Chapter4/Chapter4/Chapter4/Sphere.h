@@ -1,41 +1,28 @@
 #ifndef SPHERE_H
 #define SPHERE_H
 
-#include "Vector3.h"
-#include "Ray.h"
-#include "Hit.h"
-#include "Material.h"
-#include "Light.h"
+#include "Shape.h"
 #include "Random.h"
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include "Light.h"
 
-using namespace  std;
+using namespace std;
 
-/// <summary>
-/// 球クラス
-/// </summary>
-static int idCounter;
-
-class Sphere
+class Sphere : public Shape
 {
-private:
 public:
 	Vec3 center;		//中心位置
 	double radius;		//半径
-	int id;
 
-	shared_ptr<Material> material;		//BRDF
-	shared_ptr<Light> light;		//Le
 	Sphere(const Vec3& _center, double _radius,
 		const shared_ptr<Material>& _material, const shared_ptr<Light>& _light)
-		: center(_center), radius(_radius), material(_material), light(_light)
+		: Shape(_material, _light), center(_center), radius(_radius)
 	{
-		id = ++idCounter;
 	}
 
 	//rayと交差しているか. 交差している場合は衝突情報をresに格納
-	bool intersect(const Ray& ray, Hit& res) const
+	bool intersect(const Ray& ray, Hit& res) const override
 	{
 		//２次方程式の係数
 		double b = dot(ray.direction, ray.origin - center);
@@ -69,13 +56,13 @@ public:
 		res.t = t;
 		res.hitPos = ray(t);
 		res.hitNormal = normalize(res.hitPos - center);
-		res.hitSphere = this;
+		res.hitShape = this;
 
 		return true;
 	}
 
 	//表面上の点を一様に取得
-	Vec3 areaSamling(Vec3 hitPos) const
+	Vec3 areaSampling(Vec3 hitPos) const override
 	{
 		//中心から現在の光源の衝突位置への向きベクトルを中心とする
 		Vec3 n = normalize(hitPos - center);
@@ -98,11 +85,6 @@ public:
 
 		Vec3 normal = localToWorld(Vec3(x, y, z), s, t, n);
 		return center + radius * normalize(normal);
-	}
-
-	static void ResetId()
-	{
-		idCounter = 0;
 	}
 };
 
