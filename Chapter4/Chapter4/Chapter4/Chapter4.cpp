@@ -159,7 +159,7 @@ int main()
 
 #if DENOISER
 	denoiser();
-#elif
+#else
 	//PPM出力
 	//img.ppm_output("ppm_sample.ppm");
 	img.png_output("output.png");
