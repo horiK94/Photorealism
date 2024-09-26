@@ -22,6 +22,7 @@
 #include <OpenImageDenoise/oidn.hpp>
 
 #define SHOW_LOG false
+#define DENOISER true
 #pragma comment (lib, "OpenImageDenoise.lib")
 
 #define WIDTH 400
@@ -156,11 +157,13 @@ int main()
 	cout << "success : " << ((double)success / (success + miss)) << endl;
 #endif
 
+#if DENOISER
+	denoiser();
+#elif
 	//PPM出力
 	//img.ppm_output("ppm_sample.ppm");
-	img.png_output("before100.png");
-
-	denoiser();
+	img.png_output("output.png");
+#endif
 }
 
 void denoiser()
@@ -232,7 +235,7 @@ void denoiser()
 		img.data[i].z = colorPtr[i * 3 + 2];
 	}
 
-	img.png_output("after100.png");
+	img.png_output("output.png");
 
 	colorBuf.release();
 	albedoBuf.release();
