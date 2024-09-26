@@ -31,6 +31,7 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky);
 //NEE使用時
 Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere,
 	Vec3& firstAlbedo, Vec3& firstNormal);
+void denoiser();
 
 void createCornelboxData(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightSphere)
 {
@@ -85,8 +86,8 @@ int success = 0;
 int miss = 0;
 
 Image img(WIDTH, HEIGHT);
-//Image albedo(WIDTH, HEIGHT);
-//Vec3 normal[WIDTH][HEIGHT];
+Image albedo(WIDTH, HEIGHT);
+Image normal(WIDTH, HEIGHT);
 oidn::BufferRef colorBuf;
 float* colorPtr;
 
@@ -122,16 +123,17 @@ int main()
 				//放射輝度を計算
 
 				Vec3 albedoColor;
-				Vec3 normal;
-				Vec3 col = raddiance(ray, aggregate, sky, lightSphere, albedoColor, /*normal[i][j]*/normal);
+				Vec3 normalVec;
+				Vec3 col = raddiance(ray, aggregate, sky, lightSphere, albedoColor, normalVec);
 				//Vec3 col = raddiance(ray, aggregate, sky);
 
 				//サンプル加算
 				img.addPixel(i, j, col);
-				//if (k == 0)
-				//{
-				//	albedo.addPixel(i, j, albedoColor);
-				//}
+				if (k == 0)
+				{
+					albedo.setPixel(i, j, albedoColor);
+					normal.setPixel(i, j, normalize(normalVec));
+				}
 			}
 
 			//進歩状況の出力
@@ -158,6 +160,11 @@ int main()
 	//img.ppm_output("ppm_sample.ppm");
 	img.png_output("before100.png");
 
+	denoiser();
+}
+
+void denoiser()
+{
 	//oidn::DeviceRef device = oidn::newDevice(); // CPU or GPU if available
 	oidn::DeviceRef device = oidn::newDevice(oidn::DeviceType::CPU);
 	device.commit();
@@ -166,46 +173,42 @@ int main()
 	oidn::FilterRef filter = device.newFilter("RT"); // generic ray tracing filter
 
 	//色情報の作成
-	cout << (static_cast<unsigned long long>(img.width) * img.height * 3 * sizeof(float)) << endl;
-	colorBuf = device.newBuffer(static_cast<unsigned long long>(img.width) * img.height * 3 * sizeof(float));
+	int pixelCount = img.width * img.height;
+	colorBuf = device.newBuffer(pixelCount * 3 * sizeof(float));
 	colorPtr = static_cast<float*>(colorBuf.getData()); // mapped pointer to copy the image data to
+	for (int i = 0; i < pixelCount; i++)
 	{
-		for (int i = 0; i < img.width * img.height; i++)
-		{
-			colorPtr[i * 3 + 0] = img.data[i].x;
-			colorPtr[i * 3 + 1] = img.data[i].y;
-			colorPtr[i * 3 + 2] = img.data[i].z;
-		}
-		filter.setImage("color", colorBuf, oidn::Format::Float3, img.width, img.height); // beauty
+		Vec3 color = img.data[i];
+		colorPtr[i * 3 + 0] = color.x;
+		colorPtr[i * 3 + 1] = color.y;
+		colorPtr[i * 3 + 2] = color.z;
+	}
+	filter.setImage("color", colorBuf, oidn::Format::Float3, img.width, img.height); // beauty
+
+	// アルベド情報の取得
+	oidn::BufferRef albedoBuf = device.newBuffer(pixelCount * 3 * sizeof(float));
+	float* albedoPtr = static_cast<float*>(albedoBuf.getData()); // mapped pointer to copy the image data to
+	for (int i = 0; i < pixelCount; i++)
+	{
+		Vec3 alb = albedo.data[i];
+		albedoPtr[i * 3 + 0] = alb.x;
+		albedoPtr[i * 3 + 1] = alb.y;
+		albedoPtr[i * 3 + 2] = alb.z;
+	}
+	filter.setImage("albedo", albedoBuf, oidn::Format::Float3, img.width, img.height); // albedo
+
+	// nornmal情報の取得
+	oidn::BufferRef normalBuf = device.newBuffer(pixelCount * 3 * sizeof(float));
+	float* normalPtr = static_cast<float*>(normalBuf.getData()); // mapped pointer to copy the image data to
+	for (int i = 0; i < pixelCount; i++)
+	{
+		Vec3 nor = normal.data[i];
+		normalPtr[i * 3 + 0] = nor.x;
+		normalPtr[i * 3 + 1] = nor.y;
+		normalPtr[i * 3 + 2] = nor.z;
 	}
 
-	//// アルベド情報の取得
-	//{
-	//	oidn::BufferRef albedoBuf = device.newBuffer(img.width * img.height * 3 * sizeof(float));
-	//	float* albedoPtr = static_cast<float*>(albedoBuf.getData()); // mapped pointer to copy the image data to
-	//	for (int i = 0; i < img.width * img.height; i++)
-	//	{
-	//		albedoPtr[i * 3 + 0] = (float)albedo.data[i].x;
-	//		albedoPtr[i * 3 + 1] = (float)albedo.data[i].y;
-	//		albedoPtr[i * 3 + 2] = (float)albedo.data[i].z;
-	//	}
-	//	filter.setImage("albedo", albedoBuf, oidn::Format::Float3, img.width, img.height); // albedo
-	//}
-
-	//// nornmal情報の取得
-	//{
-	//	oidn::BufferRef normalBuf = device.newBuffer(img.width * img.height * 3 * sizeof(float));
-	//	float* normalPtr = static_cast<float*>(normalBuf.getData()); // mapped pointer to copy the image data to
-	//	for (int i = 0; i < img.width * img.height; i++)
-	//	{
-	//		normalPtr[i * 3 + 0] = (float)normal[i]->x;
-	//		normalPtr[i * 3 + 1] = (float)normal[i]->y;
-	//		normalPtr[i * 3 + 2] = (float)normal[i]->z;
-	//	}
-
-	//	filter.setImage("normal", normalBuf, oidn::Format::Float3, img.width, img.height); // normal
-	//}
-
+	filter.setImage("normal", normalBuf, oidn::Format::Float3, img.width, img.height); // normal
 
 	//デノイズ
 	filter.setImage("output", colorBuf, oidn::Format::Float3, img.width, img.height); // denoised beauty
@@ -230,6 +233,13 @@ int main()
 	}
 
 	img.png_output("after100.png");
+
+	colorBuf.release();
+	albedoBuf.release();
+	normalBuf.release();
+
+	filter.release();
+	device.release();
 }
 
 const int MAX_DEPTH = 5;      //最大反射回数
