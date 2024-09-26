@@ -1,9 +1,11 @@
 #ifndef HIT_H
 #define HIT_H
+#include "Shape.h"
 #include "Vector3.h"
 
 //プロトタイプ宣言. 循環参照になるため
-class Sphere;
+class Shape;
+
 class Hit
 {
 public:
@@ -11,7 +13,7 @@ public:
 	Vec3 hitPos;	//衝突位置
 	Vec3 hitNormal;	//衝突法線
 
-	const Sphere* hitSphere;		//衝突物体
+	const Shape* hitShape;		//衝突物体
 
 	Hit()
 	{

@@ -162,10 +162,12 @@
     <ClCompile Include="PinholeCamera.cpp" />
     <ClCompile Include="Random.cpp" />
     <ClCompile Include="Ray.cpp" />
+    <ClCompile Include="Shape.cpp" />
     <ClCompile Include="SimplySky.cpp" />
     <ClCompile Include="Sky.cpp" />
     <ClCompile Include="Sphere.cpp" />
     <ClCompile Include="ThinLensCamera.cpp" />
+    <ClCompile Include="Triangle.cpp" />
     <ClCompile Include="UniformSky.cpp" />
     <ClCompile Include="Util.cpp" />
     <ClCompile Include="Vector3.cpp" />
@@ -187,12 +189,14 @@
     <ClInclude Include="PinholeCamera.h" />
     <ClInclude Include="Random.h" />
     <ClInclude Include="Ray.h" />
+    <ClInclude Include="Shape.h" />
     <ClInclude Include="SimplySky.h" />
     <ClInclude Include="Sky.h" />
     <ClInclude Include="Sphere.h" />
     <ClInclude Include="stb_image_write.h" />
     <ClInclude Include="std_image.h" />
     <ClInclude Include="ThinLensCamera.h" />
+    <ClInclude Include="Triangle.h" />
     <ClInclude Include="UniformSky.h" />
     <ClInclude Include="Util.h" />
     <ClInclude Include="Vector3.h" />
