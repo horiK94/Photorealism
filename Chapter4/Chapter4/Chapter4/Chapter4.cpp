@@ -18,7 +18,7 @@
 #include "SimplySky.h"
 #include "IBL.h"
 #include "Glass.h"
-
+#include <chrono>
 #include <OpenImageDenoise/oidn.hpp>
 
 #define SHOW_LOG false
@@ -94,6 +94,8 @@ float* colorPtr;
 
 int main()
 {
+	chrono::system_clock::time_point start, end;
+	start = chrono::system_clock::now(); // 計測スタート時刻を保存
 	const int N = 16;      //サンプリング数
 
 	//Image img(1280, 720);
@@ -164,6 +166,8 @@ int main()
 	//img.ppm_output("ppm_sample.ppm");
 	img.png_output("output.png");
 #endif
+	end = chrono::system_clock::now(); // 計測スタート時刻を保存
+	cout << "処理時間: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000.0 << "s" << endl;
 }
 
 void denoiser()
