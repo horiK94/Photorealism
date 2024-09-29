@@ -20,19 +20,27 @@
 #include "Glass.h"
 #include <chrono>
 #include <OpenImageDenoise/oidn.hpp>
+#include "cmath"
 
 #define SHOW_LOG false
 #define DENOISER true
 #pragma comment (lib, "OpenImageDenoise.lib")
 
-#define WIDTH 400
-#define HEIGHT 400
+#define WIDTH 512
+#define HEIGHT 512
+
+//アニメーションの全フレーム
+const int AnimationMaxFrameCount = 30;
+//1s当たりのフレーム数
+const int AnimationFramerate = 10;
+
+static const double PI = 3.141592653589793;
 
 Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const Sky& sky);
 //NEE使用時
 Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, const Sphere& lightSphere,
 	Vec3& firstAlbedo, Vec3& firstNormal);
-void denoiser();
+void denoiser(int frame);
 
 void createCornelboxData(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightSphere)
 {
@@ -83,6 +91,32 @@ void createSimpleStage(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightS
 	aggregate.add(std::make_shared<Sphere>(lightSphere)); //球
 }
 
+void createCornelboxBallRotateData(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightSphere, double _time)
+{
+	//コーネルボックス
+	cam = ThinLensCamera(Vec3(0, 0, 4), Vec3(0, 0, -1), Vec3(0, 0, 0), 1, 0.1);
+
+	//コーネルボックス
+	auto mat1 = make_shared<Diffuse>(Vec3(0.8));		//白
+	auto mat2 = make_shared<Diffuse>(Vec3(0.8, 0.2, 0.2));		//赤
+	auto mat3 = make_shared<Diffuse>(Vec3(0.2, 0.8, 0.2));		//緑
+	//auto mat4 = make_shared<Glass>(1.5);		//ガラス
+
+	auto light1 = make_shared<Light>(Vec3(0));
+	auto light2 = make_shared<Light>(Vec3(10));
+
+	//コーネルボックス
+	aggregate.add(std::make_shared<Sphere>(Vec3(0, -10001, 0), 10000, mat1, light1));		//床
+	aggregate.add(std::make_shared<Sphere>(Vec3(10003, 0, 0), 10000, mat2, light1));		//右の壁
+	aggregate.add(std::make_shared<Sphere>(Vec3(-10003, 0, 0), 10000, mat3, light1));		//左の壁
+	aggregate.add(std::make_shared<Sphere>(Vec3(0, 10003, 0), 10000, mat1, light1));		//天井
+	aggregate.add(std::make_shared<Sphere>(Vec3(0, 0, -10003), 10000, mat1, light1));		//後ろの壁
+	double radian = _time * 2 * PI * AnimationFramerate / AnimationMaxFrameCount;
+	aggregate.add(std::make_shared<Sphere>(Vec3(2 * cos(radian), -0.05, 2 * sin(radian)), 0.45, mat1, light1));		//球
+	lightSphere = Sphere(Vec3(0, 3, 0), 1, mat1, light2);
+	aggregate.add(std::make_shared<Sphere>(lightSphere));		//光源
+}
+
 int success = 0;
 int miss = 0;
 
@@ -101,76 +135,91 @@ int main()
 	//Image img(1280, 720);
 
 	ThinLensCamera cam = ThinLensCamera(Vec3(0), Vec3(0), Vec3(0), 0, 0);
-	Aggregate aggregate;
-	Sphere::ResetId();
-	Sphere lightSphere = Sphere(Vec3(0), 0, nullptr, nullptr);
-	createCornelboxData(cam, aggregate, lightSphere);
+	//Aggregate aggregate;
+	//Sphere::ResetId();
+	//Sphere lightSphere = Sphere(Vec3(0), 0, nullptr, nullptr);
+	//createCornelboxData(cam, aggregate, lightSphere);
 
 	//SimplySky sky;
 	IBL sky = IBL("rainforest_trail_4k.hdr");
 
-#pragma omp parallel for schedule(dynamic, i)
-	for (int i = 0; i < img.width; i++)
+	for (int frameCount = 0; frameCount < AnimationMaxFrameCount; frameCount++)
 	{
-		for (int j = 0; j < img.height; j++)
+		Aggregate aggregate;
+
+		Sphere::ResetId();
+		Sphere lightSphere = Sphere(Vec3(0), 0, nullptr, nullptr);		//光源作成
+		createCornelboxBallRotateData(cam, aggregate, lightSphere, (double)frameCount / AnimationFramerate);
+
+#pragma omp parallel for schedule(dynamic, i)
+		for (int i = 0; i < img.width; i++)
 		{
-			for (int k = 0; k < N; k++)
+#pragma omp parallel for schedule(dynamic, j)
+			for (int j = 0; j < img.height; j++)
 			{
-				//(u, v)の計算
-				double u = (2.0 * (i + rnd()) - img.width) / img.height;
-				double v = (2.0 * (j + rnd()) - img.height) / img.height;
-
-				//レイを生成(ピンホールカメラは反転するのでマイナスを付ける)
-				Ray ray = cam.getRay(-u, -v);
-
-				//放射輝度を計算
-
-				Vec3 albedoColor;
-				Vec3 normalVec;
-				Vec3 col = raddiance(ray, aggregate, sky, lightSphere, albedoColor, normalVec);
-				//Vec3 col = raddiance(ray, aggregate, sky);
-
-				//サンプル加算
-				img.addPixel(i, j, col);
-				if (k == 0)
+				for (int k = 0; k < N; k++)
 				{
-					albedo.setPixel(i, j, albedoColor);
-					normal.setPixel(i, j, normalize(normalVec));
+					//(u, v)の計算
+					double u = (2.0 * (i + /*rnd()*/0) - img.width) / img.height;
+					double v = (2.0 * (j + /*rnd()*/0) - img.height) / img.height;
+
+					//レイを生成(ピンホールカメラは反転するのでマイナスを付ける)
+					Ray ray = cam.getRay(-u, -v);
+
+					//放射輝度を計算
+
+					Vec3 albedoColor;
+					Vec3 normalVec;
+					Vec3 col = raddiance(ray, aggregate, sky, lightSphere, albedoColor, normalVec);
+					//Vec3 col = raddiance(ray, aggregate, sky);
+
+					//サンプル加算
+					img.addPixel(i, j, col);
+					albedo.addPixel(i, j, albedoColor);
+					normal.addPixel(i, j, normalize(normalVec));
 				}
-			}
 
-			//進歩状況の出力
+				//進歩状況の出力
 #if SHOW_LOG
-			if (omp_get_thread_num() == 0)
-			{
-				cout << double(j + i * img.height) / (img.width * img.height) * 100 << "\r" << endl;
-			}
+				if (omp_get_thread_num() == 0)
+				{
+					cout << double(j + i * img.height) / (img.width * img.height) * 100 << "\r" << endl;
+				}
 #endif
+			}
 		}
-	}
 
-	//サンプリング数で割る
-	img.divide(N);
+		//サンプリング数で割る
+		img.divide(N);
+		albedo.divide(N);
+		normal.divide(N);
 
-	//ガンマ補正
-	img.gamma_correction();
+		//ガンマ補正
+		img.gamma_correction();
+		albedo.gamma_correction();
 
 #if SHOW_LOG
-	cout << "success : " << ((double)success / (success + miss)) << endl;
+		cout << "success : " << ((double)success / (success + miss)) << endl;
 #endif
 
 #if DENOISER
-	denoiser();
+		denoiser(frameCount);
 #else
-	//PPM出力
-	//img.ppm_output("ppm_sample.ppm");
-	img.png_output("output.png");
+		//PPM出力
+		//img.ppm_output("ppm_sample.ppm");
+		img.png_output("output.png");
 #endif
-	end = chrono::system_clock::now(); // 計測スタート時刻を保存
-	cout << "処理時間: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000.0 << "s" << endl;
-}
+		end = chrono::system_clock::now(); // 計測スタート時刻を保存
+		double passedTime = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000.0;
+		double aveTime = passedTime / (frameCount + 1);
+		cout << "処理時間: " << passedTime << "s | 平均時間  " << aveTime << " | 残り時間 " << (256 - passedTime) << " |  frame = " << frameCount << endl;
+				}
 
-void denoiser()
+	string dummy;
+	cin >> dummy;
+			}
+
+void denoiser(int frame)
 {
 	//oidn::DeviceRef device = oidn::newDevice(); // CPU or GPU if available
 	oidn::DeviceRef device = oidn::newDevice(oidn::DeviceType::CPU);
@@ -204,18 +253,20 @@ void denoiser()
 	}
 	filter.setImage("albedo", albedoBuf, oidn::Format::Float3, img.width, img.height); // albedo
 
-	// nornmal情報の取得
-	oidn::BufferRef normalBuf = device.newBuffer(pixelCount * 3 * sizeof(float));
-	float* normalPtr = static_cast<float*>(normalBuf.getData()); // mapped pointer to copy the image data to
-	for (int i = 0; i < pixelCount; i++)
-	{
-		Vec3 nor = normal.data[i];
-		normalPtr[i * 3 + 0] = nor.x;
-		normalPtr[i * 3 + 1] = nor.y;
-		normalPtr[i * 3 + 2] = nor.z;
-	}
+	albedo.png_output("denoiser3_" + std::to_string(frame) + ".png");
 
-	filter.setImage("normal", normalBuf, oidn::Format::Float3, img.width, img.height); // normal
+	//// nornmal情報の取得
+	//oidn::BufferRef normalBuf = device.newBuffer(pixelCount * 3 * sizeof(float));
+	//float* normalPtr = static_cast<float*>(normalBuf.getData()); // mapped pointer to copy the image data to
+	//for (int i = 0; i < pixelCount; i++)
+	//{
+	//	Vec3 nor = normal.data[i];
+	//	normalPtr[i * 3 + 0] = nor.x;
+	//	normalPtr[i * 3 + 1] = nor.y;
+	//	normalPtr[i * 3 + 2] = nor.z;
+	//}
+
+	//filter.setImage("normal", normalBuf, oidn::Format::Float3, img.width, img.height); // normal
 
 	//デノイズ
 	filter.setImage("output", colorBuf, oidn::Format::Float3, img.width, img.height); // denoised beauty
@@ -239,11 +290,11 @@ void denoiser()
 		img.data[i].z = colorPtr[i * 3 + 2];
 	}
 
-	img.png_output("output.png");
+	img.png_output("after2_" + std::to_string(frame) + ".png");
 
 	colorBuf.release();
 	albedoBuf.release();
-	normalBuf.release();
+	//normalBuf.release();
 
 	filter.release();
 	device.release();
@@ -354,10 +405,15 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 			{
 				//空に飛んで行った場合、最初に当たったときだけ光源の色を返す
 				col = throughput * ibl.getRadiance(ray);
-				firstAlbedo = col;
-				firstNormal = normal;
+				firstAlbedo = ibl.getRadiance(ray);
+				firstNormal = Vec3(0);
 			}
 			break;
+		}
+
+		if (depth == 0)
+		{
+			firstAlbedo = res.hitShape->material->getAlbedo();
 		}
 
 		if (res.hitShape->id == (&lightSphere)->id)
@@ -367,8 +423,8 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 				//光源に当たったのが最初の時
 				auto hitLight = res.hitShape->light;
 				col += throughput * hitLight->Le();
-				firstAlbedo = col;
-				firstNormal = normal;
+				firstAlbedo = hitLight->Le();
+				firstNormal = Vec3(0);
 			}
 			break;
 		}
@@ -477,7 +533,6 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 
 		if (depth == 0)
 		{
-			firstAlbedo = col;
 			firstNormal = normal;
 		}
 
