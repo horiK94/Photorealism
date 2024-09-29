@@ -81,5 +81,11 @@ public:
 	{
 		throw "–¢À‘•";
 	}
+
+	Vec3 getAlbedo() const
+	{
+		//ƒKƒ‰ƒX‚Ì“Š‰eæ
+		throw "–¢À‘•";
+	}
 };
 #endif

@@ -9,8 +9,8 @@
 class Diffuse : public Material
 {
 public:
-	Vec3 rho;		//反射率
-	Diffuse(const Vec3& _rho) : rho(_rho) {};
+	Vec3 baseColor;		//反射率
+	Diffuse(const Vec3& _rho) : baseColor(_rho) {};
 	Vec3 sample(const Vec3& wo, Vec3& wi, double& pdf) const
 	{
 		//一様乱数 (球面座標系取得)
@@ -31,12 +31,17 @@ public:
 		//確率密度関数の値
 		pdf = cos(theta) / M_PI;
 
-		return rho / M_PI;
+		return baseColor / M_PI;
 	}
 
 	Vec3 sampleFixInput(const Vec3& wo, const Vec3& wi) const
 	{
-		return rho / M_PI;
+		return baseColor / M_PI;
+	}
+
+	Vec3 getAlbedo() const
+	{
+		return baseColor;
 	}
 };
 #endif

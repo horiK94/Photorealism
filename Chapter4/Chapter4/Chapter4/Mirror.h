@@ -40,5 +40,11 @@ public:
 	{
 		throw "–¢À‘•";
 	}
+
+	Vec3 getAlbedo() const
+	{
+		//”½Ë‚ÌF‚ğ•Ô‚·
+		throw "–¢À‘•";
+	}
 };
 #endif
