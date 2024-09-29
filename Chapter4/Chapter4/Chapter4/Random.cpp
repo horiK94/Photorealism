@@ -1,11 +1,11 @@
-#include <random>		//random_device‚ğ—p‚¢‚é‚Ì‚É•K—v
+ï»¿#include <random>		//random_deviceã‚’ç”¨ã„ã‚‹ã®ã«å¿…è¦
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-//ƒƒ‹ƒZƒ“ƒkEƒcƒCƒXƒ^‚ğ—”¶¬Ší‚Æ‚µ‚Äg—p‚·‚é
-static std::random_device rnd_dev;		 //ƒV[ƒh‚ğŒˆ‚ß‚éƒfƒoƒCƒX—”
-static std::mt19937 mt(rnd_dev());		 //ƒƒ‹ƒZƒ“ƒkEƒcƒCƒXƒ^
-static std::uniform_real_distribution<> dist(0, 1); //[0, 1]‚Ìˆê—l—”
+//ãƒ¡ãƒ«ã‚»ãƒ³ãƒŒãƒ»ãƒ„ã‚¤ã‚¹ã‚¿ã‚’ä¹±æ•°ç”Ÿæˆå™¨ã¨ã—ã¦ä½¿ç”¨ã™ã‚‹
+static std::random_device rnd_dev;		 //ã‚·ãƒ¼ãƒ‰ã‚’æ±ºã‚ã‚‹ãƒ‡ãƒã‚¤ã‚¹ä¹±æ•°
+static std::mt19937 mt(rnd_dev());		 //ãƒ¡ãƒ«ã‚»ãƒ³ãƒŒãƒ»ãƒ„ã‚¤ã‚¹ã‚¿
+static std::uniform_real_distribution<> dist(0, 1); //[0, 1]ã®ä¸€æ§˜ä¹±æ•°
 
 double rnd()
 {
@@ -13,12 +13,13 @@ double rnd()
 }
 
 /// <summary>
-/// ”¼Œa1‚Ì‰~“à‚Ì“_‚ğˆê—lƒTƒ“ƒvƒŠƒ“ƒO
+/// åŠå¾„1ã®å††å†…ã®ç‚¹ã‚’ä¸€æ§˜ã‚µãƒ³ãƒ—ãƒªãƒ³ã‚°
 /// </summary>
 /// <param name="x"></param>
 /// <param name="y"></param>
 void sampleDisk(double& x, double& y)
 {
+	//ãƒ¬ãƒ³ã‚ºã®ã©ã“ã‚’é€šã‚‹ã‹
 	double u1 = rnd();
 	double u2 = rnd();
 

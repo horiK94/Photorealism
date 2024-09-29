@@ -94,7 +94,9 @@ void createSimpleStage(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightS
 void createCornelboxBallRotateData(ThinLensCamera& cam, Aggregate& aggregate, Sphere& lightSphere, double _time)
 {
 	//コーネルボックス
+	//薄レンズだとoidn用の画像を作成時に、焦点の位置がランダムで決定され境界面が荒れるのでデノイザ用の画像としては不適 → ピンホールカメラに変更
 	cam = ThinLensCamera(Vec3(0, 0, 4), Vec3(0, 0, -1), Vec3(0, 0, 0), 1, 0.1);
+	//cam = PinholeCamera(Vec3(0, 0, 4), Vec3(0, 0, -1), 1.0);
 
 	//コーネルボックス
 	auto mat1 = make_shared<Diffuse>(Vec3(0.8));		//白
@@ -135,6 +137,7 @@ int main()
 	//Image img(1280, 720);
 
 	ThinLensCamera cam = ThinLensCamera(Vec3(0), Vec3(0), Vec3(0), 0, 0);
+	//PinholeCamera cam = PinholeCamera(Vec3(0, 0, 4), Vec3(0, 0, -1), 1.0);
 	//Aggregate aggregate;
 	//Sphere::ResetId();
 	//Sphere lightSphere = Sphere(Vec3(0), 0, nullptr, nullptr);
@@ -151,17 +154,17 @@ int main()
 		Sphere lightSphere = Sphere(Vec3(0), 0, nullptr, nullptr);		//光源作成
 		createCornelboxBallRotateData(cam, aggregate, lightSphere, (double)frameCount / AnimationFramerate);
 
+		omp_set_num_threads(24);
 #pragma omp parallel for schedule(dynamic, i)
 		for (int i = 0; i < img.width; i++)
 		{
-#pragma omp parallel for schedule(dynamic, j)
 			for (int j = 0; j < img.height; j++)
 			{
 				for (int k = 0; k < N; k++)
 				{
 					//(u, v)の計算
-					double u = (2.0 * (i + /*rnd()*/0) - img.width) / img.height;
-					double v = (2.0 * (j + /*rnd()*/0) - img.height) / img.height;
+					double u = (2.0 * (i + rnd()) - img.width) / img.height;
+					double v = (2.0 * (j + rnd()) - img.height) / img.height;
 
 					//レイを生成(ピンホールカメラは反転するのでマイナスを付ける)
 					Ray ray = cam.getRay(-u, -v);
@@ -176,7 +179,7 @@ int main()
 					//サンプル加算
 					img.addPixel(i, j, col);
 					albedo.addPixel(i, j, albedoColor);
-					normal.addPixel(i, j, normalize(normalVec));
+					normal.addPixel(i, j, (normalize(normalVec) + 1) / 2);
 				}
 
 				//進歩状況の出力
@@ -213,11 +216,8 @@ int main()
 		double passedTime = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000.0;
 		double aveTime = passedTime / (frameCount + 1);
 		cout << "処理時間: " << passedTime << "s | 平均時間  " << aveTime << " | 残り時間 " << (256 - passedTime) << " |  frame = " << frameCount << endl;
-				}
-
-	string dummy;
-	cin >> dummy;
-			}
+	}
+}
 
 void denoiser(int frame)
 {
@@ -241,7 +241,11 @@ void denoiser(int frame)
 	}
 	filter.setImage("color", colorBuf, oidn::Format::Float3, img.width, img.height); // beauty
 
+#if SHOW_LOG
 	// アルベド情報の取得
+	albedo.png_output("denoiser_" + std::to_string(frame) + ".png");
+#endif
+
 	oidn::BufferRef albedoBuf = device.newBuffer(pixelCount * 3 * sizeof(float));
 	float* albedoPtr = static_cast<float*>(albedoBuf.getData()); // mapped pointer to copy the image data to
 	for (int i = 0; i < pixelCount; i++)
@@ -253,20 +257,22 @@ void denoiser(int frame)
 	}
 	filter.setImage("albedo", albedoBuf, oidn::Format::Float3, img.width, img.height); // albedo
 
-	albedo.png_output("denoiser3_" + std::to_string(frame) + ".png");
+#if SHOW_LOG
+	// nornmal情報の取得
+	normal.png_output("normal_" + std::to_string(frame) + ".png");
+#endif
 
-	//// nornmal情報の取得
-	//oidn::BufferRef normalBuf = device.newBuffer(pixelCount * 3 * sizeof(float));
-	//float* normalPtr = static_cast<float*>(normalBuf.getData()); // mapped pointer to copy the image data to
-	//for (int i = 0; i < pixelCount; i++)
-	//{
-	//	Vec3 nor = normal.data[i];
-	//	normalPtr[i * 3 + 0] = nor.x;
-	//	normalPtr[i * 3 + 1] = nor.y;
-	//	normalPtr[i * 3 + 2] = nor.z;
-	//}
+	oidn::BufferRef normalBuf = device.newBuffer(pixelCount * 3 * sizeof(float));
+	float* normalPtr = static_cast<float*>(normalBuf.getData()); // mapped pointer to copy the image data to
+	for (int i = 0; i < pixelCount; i++)
+	{
+		Vec3 nor = normal.data[i];
+		normalPtr[i * 3 + 0] = nor.x;
+		normalPtr[i * 3 + 1] = nor.y;
+		normalPtr[i * 3 + 2] = nor.z;
+	}
 
-	//filter.setImage("normal", normalBuf, oidn::Format::Float3, img.width, img.height); // normal
+	filter.setImage("normal", normalBuf, oidn::Format::Float3, img.width, img.height); // normal
 
 	//デノイズ
 	filter.setImage("output", colorBuf, oidn::Format::Float3, img.width, img.height); // denoised beauty
@@ -290,7 +296,7 @@ void denoiser(int frame)
 		img.data[i].z = colorPtr[i * 3 + 2];
 	}
 
-	img.png_output("after2_" + std::to_string(frame) + ".png");
+	img.png_output("after_" + std::to_string(frame) + ".png");
 
 	colorBuf.release();
 	albedoBuf.release();
@@ -411,11 +417,6 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 			break;
 		}
 
-		if (depth == 0)
-		{
-			firstAlbedo = res.hitShape->material->getAlbedo();
-		}
-
 		if (res.hitShape->id == (&lightSphere)->id)
 		{
 			if (depth == 0)
@@ -424,9 +425,15 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 				auto hitLight = res.hitShape->light;
 				col += throughput * hitLight->Le();
 				firstAlbedo = hitLight->Le();
-				firstNormal = Vec3(0);
+				firstNormal = res.hitNormal;
 			}
 			break;
+		}
+
+		if (depth == 0)
+		{
+			firstAlbedo = res.hitShape->material->getAlbedo();
+			firstNormal = res.hitNormal;
 		}
 
 		//NEEにおける寄与の計算
@@ -529,11 +536,6 @@ Vec3 raddiance(const Ray& init_ray, const Aggregate& aggregate, const IBL& ibl, 
 
 			//次のレイを生成
 			ray = Ray(res.hitPos, wi);
-		}
-
-		if (depth == 0)
-		{
-			firstNormal = normal;
 		}
 
 		//ロシアンルーレット
