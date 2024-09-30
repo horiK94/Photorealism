@@ -162,7 +162,7 @@ int main()
 
 		omp_set_num_threads(32);
 
-#pragma omp parallel for schedule(dynamic, i)
+#pragma omp parallel for
 		for (int i = 0; i < img.width; i++)
 		{
 			// 並列領域内でスレッド番号を取得
