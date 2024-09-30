@@ -22,6 +22,8 @@
 #include <OpenImageDenoise/oidn.hpp>
 #include "cmath"
 
+#include <omp.h>
+
 #define SHOW_LOG false
 #define DENOISER true
 #pragma comment (lib, "OpenImageDenoise.lib")
@@ -154,10 +156,20 @@ int main()
 		Sphere lightSphere = Sphere(Vec3(0), 0, nullptr, nullptr);		//光源作成
 		createCornelboxBallRotateData(cam, aggregate, lightSphere, (double)frameCount / AnimationFramerate);
 
-		omp_set_num_threads(24);
+#if SHOW_LOG
+		cout << omp_get_max_threads() << endl;
+#endif
+
+		omp_set_num_threads(32);
+
 #pragma omp parallel for schedule(dynamic, i)
 		for (int i = 0; i < img.width; i++)
 		{
+			// 並列領域内でスレッド番号を取得
+#if SHOW_LOG
+			int thread_id = omp_get_thread_num();
+			cout << "Thread " << thread_id << " processing i = " << i << endl;
+#endif
 			for (int j = 0; j < img.height; j++)
 			{
 				for (int k = 0; k < N; k++)
