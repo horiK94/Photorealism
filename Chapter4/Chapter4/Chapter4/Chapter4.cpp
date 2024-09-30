@@ -308,7 +308,7 @@ void denoiser(int frame)
 		img.data[i].z = colorPtr[i * 3 + 2];
 	}
 
-	img.png_output("after_" + std::to_string(frame) + ".png");
+	img.png_output(std::to_string(frame) + ".png");
 
 	colorBuf.release();
 	albedoBuf.release();
