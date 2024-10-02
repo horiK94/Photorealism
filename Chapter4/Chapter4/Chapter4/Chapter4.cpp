@@ -21,8 +21,10 @@
 #include <chrono>
 #include <OpenImageDenoise/oidn.hpp>
 #include "cmath"
+#include <sstream>
+#include <iomanip>
 
-#include <omp.h>
+#include "Triangle.h"
 
 #define SHOW_LOG false
 #define DENOISER true
@@ -32,9 +34,9 @@
 #define HEIGHT 512
 
 //アニメーションの全フレーム
-const int AnimationMaxFrameCount = 30;
+const int AnimationMaxFrameCount = 45;
 //1s当たりのフレーム数
-const int AnimationFramerate = 10;
+const int AnimationFramerate = 16;
 
 static const double PI = 3.141592653589793;
 
@@ -101,23 +103,37 @@ void createCornelboxBallRotateData(ThinLensCamera& cam, Aggregate& aggregate, Sp
 	//cam = PinholeCamera(Vec3(0, 0, 4), Vec3(0, 0, -1), 1.0);
 
 	//コーネルボックス
-	auto mat1 = make_shared<Diffuse>(Vec3(0.8));		//白
-	auto mat2 = make_shared<Diffuse>(Vec3(0.8, 0.2, 0.2));		//赤
-	auto mat3 = make_shared<Diffuse>(Vec3(0.2, 0.8, 0.2));		//緑
+	auto whiteMat = make_shared<Diffuse>(Vec3(0.8));		//白
+	auto redMat = make_shared<Diffuse>(Vec3(0.8, 0.2, 0.2));		//赤
+	auto greenMat = make_shared<Diffuse>(Vec3(0.2, 0.8, 0.2));		//緑
+	auto blueMat = make_shared<Diffuse>(Vec3(0.2, 0.2, 1));		//青
 	//auto mat4 = make_shared<Glass>(1.5);		//ガラス
 
 	auto light1 = make_shared<Light>(Vec3(0));
 	auto light2 = make_shared<Light>(Vec3(10));
 
 	//コーネルボックス
-	aggregate.add(std::make_shared<Sphere>(Vec3(0, -10001, 0), 10000, mat1, light1));		//床
-	aggregate.add(std::make_shared<Sphere>(Vec3(10003, 0, 0), 10000, mat2, light1));		//右の壁
-	aggregate.add(std::make_shared<Sphere>(Vec3(-10003, 0, 0), 10000, mat3, light1));		//左の壁
-	aggregate.add(std::make_shared<Sphere>(Vec3(0, 10003, 0), 10000, mat1, light1));		//天井
-	aggregate.add(std::make_shared<Sphere>(Vec3(0, 0, -10003), 10000, mat1, light1));		//後ろの壁
+	aggregate.add(std::make_shared<Sphere>(Vec3(0, -10001, 0), 10000, whiteMat, light1));		//床
+	aggregate.add(std::make_shared<Sphere>(Vec3(10003, 0, 0), 10000, redMat, light1));		//右の壁
+	aggregate.add(std::make_shared<Sphere>(Vec3(-10003, 0, 0), 10000, greenMat, light1));		//左の壁
+	aggregate.add(std::make_shared<Sphere>(Vec3(0, 10003, 0), 10000, whiteMat, light1));		//天井
+	aggregate.add(std::make_shared<Sphere>(Vec3(0, 0, -10003), 10000, whiteMat, light1));		//後ろの壁
 	double radian = _time * 2 * PI * AnimationFramerate / AnimationMaxFrameCount;
-	aggregate.add(std::make_shared<Sphere>(Vec3(2 * cos(radian), -0.05, 2 * sin(radian)), 0.45, mat1, light1));		//球
-	lightSphere = Sphere(Vec3(0, 3, 0), 1, mat1, light2);
+	aggregate.add(std::make_shared<Sphere>(Vec3(1.2 * cos(radian), -0.05, 1.2 * sin(radian)), 0.45, whiteMat, light1));		//球
+	aggregate.add(std::make_shared<Sphere>(Vec3(2 * cos(2 * radian), 1.05, 2 * sin(2 * radian)), 0.3, whiteMat, light1));		//球
+
+	double triangularPyramidScale = 2.0;
+	double bottomY = -0.75;
+	Vec3 front = Vec3(0, bottomY, triangularPyramidScale * 0.5);
+	Vec3 backLeft = Vec3(triangularPyramidScale * 0.5, bottomY, -triangularPyramidScale * 0.5);
+	Vec3 backRight = Vec3(-triangularPyramidScale * 0.5, bottomY, -triangularPyramidScale * 0.5);
+	Vec3 top = Vec3(0, 0.81649658092 * triangularPyramidScale + bottomY, 0);
+	aggregate.add(std::make_shared<Triangle>(front, backLeft, backRight, blueMat, light1));		//ポリゴン下
+	aggregate.add(std::make_shared<Triangle>(top, front, backLeft, blueMat, light1));		//ポリゴン下
+	aggregate.add(std::make_shared<Triangle>(top, backLeft, backRight, blueMat, light1));		//ポリゴン下
+	aggregate.add(std::make_shared<Triangle>(top, backRight, front, blueMat, light1));		//ポリゴン下
+
+	lightSphere = Sphere(Vec3(0, 3, 0), 1, whiteMat, light2);
 	aggregate.add(std::make_shared<Sphere>(lightSphere));		//光源
 }
 
@@ -156,20 +172,11 @@ int main()
 		Sphere lightSphere = Sphere(Vec3(0), 0, nullptr, nullptr);		//光源作成
 		createCornelboxBallRotateData(cam, aggregate, lightSphere, (double)frameCount / AnimationFramerate);
 
-#if SHOW_LOG
-		cout << omp_get_max_threads() << endl;
-#endif
-
 		omp_set_num_threads(32);
 
 #pragma omp parallel for
 		for (int i = 0; i < img.width; i++)
 		{
-			// 並列領域内でスレッド番号を取得
-#if SHOW_LOG
-			int thread_id = omp_get_thread_num();
-			cout << "Thread " << thread_id << " processing i = " << i << endl;
-#endif
 			for (int j = 0; j < img.height; j++)
 			{
 				for (int k = 0; k < N; k++)
@@ -193,16 +200,8 @@ int main()
 					albedo.addPixel(i, j, albedoColor);
 					normal.addPixel(i, j, (normalize(normalVec) + 1) / 2);
 				}
-
-				//進歩状況の出力
-#if SHOW_LOG
-				if (omp_get_thread_num() == 0)
-				{
-					cout << double(j + i * img.height) / (img.width * img.height) * 100 << "\r" << endl;
-				}
-#endif
-			}
 		}
+	}
 
 		//サンプリング数で割る
 		img.divide(N);
@@ -228,7 +227,7 @@ int main()
 		double passedTime = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000.0;
 		double aveTime = passedTime / (frameCount + 1);
 		cout << "処理時間: " << passedTime << "s | 平均時間  " << aveTime << " | 残り時間 " << (256 - passedTime) << " |  frame = " << frameCount << endl;
-	}
+}
 }
 
 void denoiser(int frame)
@@ -308,7 +307,9 @@ void denoiser(int frame)
 		img.data[i].z = colorPtr[i * 3 + 2];
 	}
 
-	img.png_output(std::to_string(frame) + ".png");
+	std::ostringstream oss;
+	oss << std::setw(3) << std::setfill('0') << frame;
+	img.png_output(oss.str() + ".png");
 
 	colorBuf.release();
 	albedoBuf.release();
