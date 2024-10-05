@@ -36,7 +36,9 @@
 //アニメーションの全フレーム
 const int AnimationMaxFrameCount = 45;
 //1s当たりのフレーム数
-const int AnimationFramerate = 16;
+const int AnimationFramerate = 15;
+// 打ち切り時間(制限時間の10秒前に打ち切る)
+const int TimeLimit = 256 - 10;
 
 static const double PI = 3.141592653589793;
 
@@ -172,7 +174,7 @@ int main()
 		Sphere lightSphere = Sphere(Vec3(0), 0, nullptr, nullptr);		//光源作成
 		createCornelboxBallRotateData(cam, aggregate, lightSphere, (double)frameCount / AnimationFramerate);
 
-		omp_set_num_threads(32);
+		omp_set_num_threads(omp_get_max_threads());
 
 #pragma omp parallel for
 		for (int i = 0; i < img.width; i++)
@@ -200,8 +202,8 @@ int main()
 					albedo.addPixel(i, j, albedoColor);
 					normal.addPixel(i, j, (normalize(normalVec) + 1) / 2);
 				}
+			}
 		}
-	}
 
 		//サンプリング数で割る
 		img.divide(N);
@@ -226,8 +228,13 @@ int main()
 		end = chrono::system_clock::now(); // 計測スタート時刻を保存
 		double passedTime = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000.0;
 		double aveTime = passedTime / (frameCount + 1);
-		cout << "処理時間: " << passedTime << "s | 平均時間  " << aveTime << " | 残り時間 " << (256 - passedTime) << " |  frame = " << frameCount << endl;
-}
+		cout << "処理時間: " << passedTime << "s | 平均時間  " << aveTime << " | 残り時間 " << (TimeLimit - passedTime) << " |  frame = " << frameCount << endl;
+
+		if (passedTime > TimeLimit)
+		{
+			return 0;
+		}
+	}
 }
 
 void denoiser(int frame)
