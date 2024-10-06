@@ -175,6 +175,7 @@ int main()
 		createCornelboxBallRotateData(cam, aggregate, lightSphere, (double)frameCount / AnimationFramerate);
 
 		omp_set_num_threads(omp_get_max_threads());
+		cout << "max thread = " << omp_get_max_threads() << endl;
 
 #pragma omp parallel for
 		for (int i = 0; i < img.width; i++)
