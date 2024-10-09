@@ -1,28 +1,28 @@
 ﻿// Chapter4.cpp : このファイルには 'main' 関数が含まれています。プログラム実行の開始と終了がそこで行われます。
 //
 
-#include <memory>
-#include <iostream>
-#include "Vector3.h"
-#include "Ray.h"
 #include "Aggregate.h"
-#include "Material.h"
-#include "Image.h"
-#include "PinholeCamera.h"
-#include "ThinLensCamera.h"
-#include "Random.h"
-#include <omp.h>
-#include "Sphere.h"
-#include "Diffuse.h"
-#include "Mirror.h"
-#include "SimplySky.h"
-#include "IBL.h"
-#include "Glass.h"
-#include <chrono>
-#include <OpenImageDenoise/oidn.hpp>
 #include "cmath"
-#include <sstream>
+#include "Diffuse.h"
+#include "Glass.h"
+#include "IBL.h"
+#include "Image.h"
+#include "Material.h"
+#include "Mirror.h"
+#include "PinholeCamera.h"
+#include "Random.h"
+#include "Ray.h"
+#include "SimplySky.h"
+#include "Sphere.h"
+#include "ThinLensCamera.h"
+#include "Vector3.h"
+#include <chrono>
 #include <iomanip>
+#include <iostream>
+#include <memory>
+#include <omp.h>
+#include <OpenImageDenoise/oidn.hpp>
+#include <sstream>
 
 #include "Triangle.h"
 
@@ -30,13 +30,13 @@
 #define DENOISER true
 #pragma comment (lib, "OpenImageDenoise.lib")
 
-#define WIDTH 512
-#define HEIGHT 512
+#define WIDTH 450
+#define HEIGHT 450
 
 //アニメーションの全フレーム
-const int AnimationMaxFrameCount = 45;
+const int AnimationMaxFrameCount = 30;
 //1s当たりのフレーム数
-const int AnimationFramerate = 15;
+const int AnimationFramerate = 10;
 // 打ち切り時間(制限時間の10秒前に打ち切る)
 const int TimeLimit = 256 - 10;
 
@@ -150,8 +150,9 @@ float* colorPtr;
 
 int main()
 {
-	chrono::system_clock::time_point start, end;
+	chrono::system_clock::time_point start, middle, end;
 	start = chrono::system_clock::now(); // 計測スタート時刻を保存
+	middle = chrono::system_clock::now(); // 計測スタート時刻を保存
 	const int N = 16;      //サンプリング数
 
 	//Image img(1280, 720);
@@ -166,6 +167,8 @@ int main()
 	//SimplySky sky;
 	IBL sky = IBL("rainforest_trail_4k.hdr");
 
+	omp_set_num_threads(omp_get_max_threads());
+
 	for (int frameCount = 0; frameCount < AnimationMaxFrameCount; frameCount++)
 	{
 		Aggregate aggregate;
@@ -174,10 +177,7 @@ int main()
 		Sphere lightSphere = Sphere(Vec3(0), 0, nullptr, nullptr);		//光源作成
 		createCornelboxBallRotateData(cam, aggregate, lightSphere, (double)frameCount / AnimationFramerate);
 
-		omp_set_num_threads(omp_get_max_threads());
-		cout << "max thread = " << omp_get_max_threads() << endl;
-
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic, 1)
 		for (int i = 0; i < img.width; i++)
 		{
 			for (int j = 0; j < img.height; j++)
@@ -220,20 +220,33 @@ int main()
 #endif
 
 #if DENOISER
+		{
+			end = chrono::system_clock::now(); // 計測スタート時刻を保存
+			double passedTime = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000.0;
+			double middleTime = chrono::duration_cast<chrono::milliseconds>(end - middle).count() / 1000.0;
+			double aveTime = passedTime / (frameCount + 1);
+			cout << "A ~~~ PassedTime: " << passedTime << "s | MiddleTime " << middleTime << " | RemainTime " << (TimeLimit - passedTime) << " |  frame = " << frameCount << endl;
+			middle = chrono::system_clock::now(); // 計測スタート時刻を保存
+		}
+
 		denoiser(frameCount);
 #else
 		//PPM出力
 		//img.ppm_output("ppm_sample.ppm");
 		img.png_output("output.png");
 #endif
-		end = chrono::system_clock::now(); // 計測スタート時刻を保存
-		double passedTime = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000.0;
-		double aveTime = passedTime / (frameCount + 1);
-		cout << "処理時間: " << passedTime << "s | 平均時間  " << aveTime << " | 残り時間 " << (TimeLimit - passedTime) << " |  frame = " << frameCount << endl;
-
-		if (passedTime > TimeLimit)
 		{
-			return 0;
+			end = chrono::system_clock::now(); // 計測スタート時刻を保存
+			double passedTime = chrono::duration_cast<chrono::milliseconds>(end - start).count() / 1000.0;
+			double middleTime = chrono::duration_cast<chrono::milliseconds>(end - middle).count() / 1000.0;
+			double aveTime = passedTime / (frameCount + 1);
+			cout << "B ~~~ PassedTime: " << passedTime << "s | MiddleTime " << middleTime << " | Average  " << aveTime << " | RemainTime " << (TimeLimit - passedTime) << " |  frame = " << frameCount << endl;
+			middle = chrono::system_clock::now(); // 計測スタート時刻を保存
+
+			if (passedTime > TimeLimit)
+			{
+				return 0;
+			}
 		}
 	}
 }
@@ -321,7 +334,7 @@ void denoiser(int frame)
 
 	colorBuf.release();
 	albedoBuf.release();
-	//normalBuf.release();
+	normalBuf.release();
 
 	filter.release();
 	device.release();
